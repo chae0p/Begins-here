@@ -1,0 +1,1751 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Begins Study</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #4A2E14; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- window.storage using localStorage -->
+  <script>
+    window.storage = {
+      get: function(key, shared) {
+        try {
+          var val = localStorage.getItem((shared ? 's_' : 'p_') + key);
+          return Promise.resolve(val !== null ? { key: key, value: val, shared: !!shared } : null);
+        } catch(e) { return Promise.reject(e); }
+      },
+      set: function(key, value, shared) {
+        try {
+          localStorage.setItem((shared ? 's_' : 'p_') + key, String(value));
+          return Promise.resolve({ key: key, value: value, shared: !!shared });
+        } catch(e) { return Promise.reject(e); }
+      },
+      delete: function(key, shared) {
+        try {
+          localStorage.removeItem((shared ? 's_' : 'p_') + key);
+          return Promise.resolve({ key: key, deleted: true, shared: !!shared });
+        } catch(e) { return Promise.reject(e); }
+      },
+      list: function(prefix, shared) {
+        try {
+          var pfx = (shared ? 's_' : 'p_') + (prefix || '');
+          var keys = Object.keys(localStorage).filter(function(k){ return k.startsWith(pfx); }).map(function(k){ return k.slice(2); });
+          return Promise.resolve({ keys: keys, prefix: prefix, shared: !!shared });
+        } catch(e) { return Promise.reject(e); }
+      }
+    };
+  </script>
+
+  <!-- React App (JSX inline) -->
+  <script type="text/babel" data-presets="react">
+import { useState, useEffect } from "react";
+
+// ╔══════════════════════════════════════════════╗
+// ║        BEGINS STUDY — 설정 (Amy 전용)         ║
+// ╚══════════════════════════════════════════════╝
+const CONFIG = {
+  PIN: "1004",
+  START_DATE: new Date("2026-05-31"),   // 1주차 시작일 (2026.05.31 일요일)
+  MAX_VIEWS: 3,                          // 주간 최대 열람 횟수
+};
+
+// ── 현재 주차 계산 (START_DATE 기준, 일요일 오픈) ──
+function getCurrentWeek() {
+  const now = new Date();
+  const diff = Math.floor((now - CONFIG.START_DATE) / (7 * 24 * 60 * 60 * 1000));
+  return Math.min(Math.max(diff + 1, 1), 32);
+}
+
+// ── 이번 주의 주 키 (일요일 기준 뷰 카운트용) ──────
+function getWeekKey() {
+  const now = new Date();
+  const day = now.getDay(); // 0=일, 1=월 ... 6=토
+  const sunday = new Date(now);
+  sunday.setDate(now.getDate() - day);
+  const y = sunday.getFullYear();
+  const m = String(sunday.getMonth() + 1).padStart(2, "0");
+  const d = String(sunday.getDate()).padStart(2, "0");
+  return `begins_views_${y}_${m}${d}`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 📚  WEEK DATA  — 전체 32주 완성본
+// ══════════════════════════════════════════════════════════════
+const WEEKS = [
+  {
+    w: 1, m: 1,
+    theme: "Customer Service Excellence",
+    sub: "The Basics of Great Service",
+    cheer: "매일의 작은 준비가 당신을 특별한 승무원으로 만들어줄 거예요. 오늘도 화이팅! ✈️",
+    expressions: [
+      {
+        phrase: "Carry out",
+        korean: "계획·결정 등을 실제 행동으로 옮기다",
+        context: "머릿속에만 있던 계획이나 누군가의 지시를 실제로 실행에 옮길 때 쓰는 표현이에요. 일상·직장·학교 등 어디서든 자주 쓰여요.",
+        en: "She carried out her plan to study abroad despite her family's concerns.",
+        ko: "그녀는 가족의 걱정에도 불구하고 해외 유학 계획을 실행에 옮겼습니다.",
+      },
+      {
+        phrase: "Speak up",
+        korean: "용기 내어 말하다 / 목소리를 내다",
+        context: "불편하거나 부당한 상황에서 침묵하지 않고 자신의 생각·의견·불만을 솔직하게 꺼낼 때 써요. '말 좀 해봐'처럼 가볍게도 쓰여요.",
+        en: "He finally spoke up about the unfair treatment he had been receiving at work.",
+        ko: "그는 마침내 직장에서 받아온 부당한 대우에 대해 용기 내어 말했습니다.",
+      },
+      {
+        phrase: "Follow through",
+        korean: "끝까지 해내다 / 말한 것을 실제로 지키다",
+        context: "말로만 하고 끝나지 않고 약속이나 계획을 마지막까지 실천에 옮길 때 써요. '유야무야되다'의 반대 표현이에요.",
+        en: "She said she'd help me move this weekend, and she actually followed through.",
+        ko: "그녀는 이번 주말에 이사를 도와주겠다고 했고, 실제로 그 약속을 지켰습니다.",
+      },
+    ],
+    dq: [
+      { q: "What does 'excellent customer service' mean to you personally as a future cabin crew member?", k: "미래 승무원으로서, '탁월한 고객 서비스'란 당신에게 어떤 의미인가요?" },
+      { q: "Can you describe a time when you went out of your way to help someone? What actions did you carry out?", k: "누군가를 돕기 위해 특별히 노력했던 경험이 있나요? 어떤 행동을 수행했나요?" },
+      { q: "How would you handle a service request from a passenger who speaks very little English?", k: "영어를 거의 못하는 승객의 서비스 요청을 어떻게 수행하겠어요?" },
+      { q: "What small gestures do you think make the biggest difference in a passenger's flight experience?", k: "승객의 비행 경험에 가장 큰 차이를 만드는 사소한 행동들은 무엇인가요?" },
+      { q: "How would you define the difference between 'just doing your job' and 'going above and beyond'?", k: "'맡은 일을 하는 것'과 '기대 이상을 해내는 것'의 차이를 어떻게 정의하나요?" },
+      { q: "How would you prioritize multiple service requests coming from different passengers at the same time?", k: "동시에 여러 승객의 요청이 들어온다면, 어떻게 우선순위를 정하겠어요?" },
+      { q: "If you made a small mistake during service, how would you speak up and handle it professionally?", k: "서비스 중 실수를 했다면, 어떻게 솔직하게 말하고 프로답게 처리하겠어요?" },
+      { q: "Do you find it easy or difficult to speak up when you disagree with something? How do you manage that?", k: "무언가에 동의하지 않을 때 의견을 내는 게 쉬운가요, 어려운가요?" },
+      { q: "🎭 [Role-play] A Business Class passenger says the cabin is too cold, but others want it cool. How do you speak up and follow through on a solution?", k: "비즈니스석 승객이 너무 춥다고 하는데 다른 승객은 시원하게 원해요. 어떻게 의견을 말하고 해결책을 끝까지 실행하겠어요?", roleplay: true },
+      { q: "🎭 [Role-play] You promised to check on a special meal, but it turns out it's unavailable. How do you follow through and deliver the news professionally?", k: "특별 식사 확인을 약속했는데 제공 불가 상황이에요. 어떻게 승객에게 전문적으로 전달하겠어요?", roleplay: true },
+    ],
+    ss: [
+      "What does carrying out your responsibilities with a positive attitude mean to you in a professional setting?",
+      "If you could speak up about one thing airlines could improve for passengers, what would it be?",
+      "Describe a moment when following through on a commitment — even a small one — truly changed an outcome.",
+    ],
+  },
+  {
+    w: 2, m: 1,
+    theme: "Customer Service Excellence",
+    sub: "Understanding Passenger Needs",
+    cheer: "승객의 눈에 보이지 않는 배려가 진짜 서비스의 시작이에요. 당신은 잘 하고 있어요.",
+    expressions: [
+      {
+        phrase: "Live up to",
+        korean: "기대·평판·기준에 부응하다",
+        context: "소문이나 기대가 컸던 무언가가 실제로도 그만한지 판단할 때, 또는 스스로가 남의 기대에 걸맞게 행동해야 할 때 써요.",
+        en: "The restaurant didn't quite live up to the hype — the food was just average.",
+        ko: "그 레스토랑은 소문에 부응하지 못했어요 — 음식이 그냥 평범했거든요.",
+      },
+      {
+        phrase: "Make up for",
+        korean: "부족함·실수를 보충하다 / 만회하다",
+        context: "놓쳤거나 잘못된 부분을 다른 노력이나 행동으로 메울 때 써요. 시간·감정·실수 등 다양한 상황에서 쓸 수 있어요.",
+        en: "He worked extra hours all week to make up for the days he missed.",
+        ko: "그는 빠진 날들을 만회하기 위해 일주일 내내 초과 근무를 했습니다.",
+      },
+      {
+        phrase: "Reach out",
+        korean: "먼저 연락을 취하다 / 다가가다",
+        context: "연락이 끊겼거나 도움이 필요해 보이는 사람에게 내가 먼저 연락하거나 손을 내밀 때 써요. 이메일·문자·DM 어디서든 자연스럽게 써요.",
+        en: "After moving to a new city, she reached out to a few online communities to make friends.",
+        ko: "새 도시로 이사한 후, 그녀는 친구를 사귀기 위해 몇몇 온라인 커뮤니티에 먼저 연락을 취했습니다.",
+      },
+    ],
+    dq: [
+      { q: "How do you identify what a passenger needs before they even ask for it?", k: "승객이 요청하기 전에 무엇이 필요한지 어떻게 파악하나요?" },
+      { q: "Can you describe a time when you reached out to someone who seemed to need help?", k: "도움이 필요해 보이는 사람에게 먼저 다가갔던 경험이 있나요?" },
+      { q: "How would you live up to a passenger's expectation if they had a very specific request?", k: "매우 구체적인 요청을 한 승객의 기대에 어떻게 부응하겠어요?" },
+      { q: "In what ways can a cabin crew member make up for a poor first impression?", k: "첫인상이 좋지 않았을 때 승무원으로서 어떻게 만회할 수 있을까요?" },
+      { q: "How do you balance proactively reaching out to passengers while not being intrusive?", k: "먼저 다가가되 지나치게 간섭하지 않는 균형을 어떻게 유지하나요?" },
+      { q: "What signals or body language do you look for to understand what a passenger might need?", k: "승객의 필요를 파악하기 위해 어떤 신호나 바디랭귀지를 살피나요?" },
+      { q: "How would you make up for not being able to fulfill a passenger's specific dietary request?", k: "특별 식이 요청을 충족할 수 없을 때 어떻게 만회하겠어요?" },
+      { q: "Describe how you would reach out to an elderly passenger traveling alone for the first time.", k: "처음으로 혼자 여행하는 노인 승객에게 어떻게 먼저 다가가겠어요?" },
+      { q: "🎭 [Role-play] A passenger seems upset but hasn't called for assistance. How do you reach out without making them feel observed?", k: "한 승객이 화가 난 것 같지만 도움을 요청하지 않아요. 어색하지 않게 어떻게 먼저 다가가겠어요?", roleplay: true },
+      { q: "🎭 [Role-play] A passenger expected a window seat but received an aisle seat due to overbooking. How do you live up to their expectations and make up for the inconvenience?", k: "오버부킹으로 통로 좌석을 받은 승객의 기대에 어떻게 부응하고 불편을 만회하겠어요?", roleplay: true },
+    ],
+    ss: [
+      "How do you personally live up to your own standards when no one is watching?",
+      "Describe a situation where you had to make up for something that wasn't your fault but was your responsibility.",
+      "What does it mean to you to proactively reach out to people in a professional environment?",
+    ],
+  },
+  {
+    w:3,m:1,theme:"Customer Service Excellence",sub:"Handling Difficult Passengers",
+    cheer:"어려운 상황에서도 미소를 유지하는 것, 그게 당신의 강점이 될 거예요.",
+    expressions:[
+      {phrase:"Take on",korean:"책임·과제·상황을 맡다 / 직면하다",context:"새로운 책임이나 어려운 과제를 기꺼이 받아들이거나, 도전적인 상황에 정면으로 맞설 때 써요.",en:"She decided to take on the extra project even though her schedule was already packed.",ko:"그녀는 일정이 이미 꽉 찼음에도 추가 프로젝트를 맡기로 했습니다."},
+      {phrase:"Step in",korean:"개입하다 / 나서서 돕다",context:"상황이 나빠지려 하거나 누군가의 도움이 필요할 때 적극적으로 개입하거나 대신 나설 때 써요.",en:"When the debate got too heated, the moderator stepped in to calm things down.",ko:"토론이 너무 격해지자 진행자가 나서서 상황을 진정시켰습니다."},
+      {phrase:"Turn to",korean:"~에게 의지하다 / 도움을 구하다",context:"어렵거나 막막할 때 특정 사람이나 방법에 의지하거나 도움을 구할 때 써요.",en:"Whenever she felt overwhelmed at university, she turned to journaling to clear her head.",ko:"대학에서 압도감을 느낄 때마다, 그녀는 일기를 쓰며 생각을 정리했습니다."},
+    ],
+    dq:[
+      {q:"How do you mentally prepare yourself before taking on a challenging task or responsibility?",k:"어렵거나 도전적인 과제를 맡기 전에 어떻게 마음의 준비를 하나요?"},
+      {q:"Describe a time you had to step in to help someone who was struggling. What did you do?",k:"어려움을 겪고 있는 누군가를 돕기 위해 나섰던 경험을 말해주세요."},
+      {q:"Who or what do you turn to when you face a problem you've never dealt with before?",k:"처음 겪는 어려운 상황에 직면했을 때 누구에게 또는 무엇에 의지하나요?"},
+      {q:"What strategies do you use to stay calm when a passenger is being unreasonable or rude?",k:"승객이 불합리하거나 무례하게 굴 때 침착함을 유지하기 위해 어떤 전략을 쓰나요?"},
+      {q:"How would you take on the responsibility of handling a complaint from a very upset passenger?",k:"매우 화가 난 승객의 불만을 처리하는 책임을 어떻게 담당하겠어요?"},
+      {q:"If a colleague seems overwhelmed by a difficult situation, how do you decide when to step in?",k:"동료가 어려운 상황에 압도된 것처럼 보일 때 언제 개입할지 어떻게 결정하나요?"},
+      {q:"Have you ever had to take on a role you felt underprepared for? How did you manage?",k:"충분히 준비되지 않은 역할을 맡아야 했던 적이 있나요? 어떻게 했나요?"},
+      {q:"What kind of support do you turn to when you feel emotionally drained after a tough interaction?",k:"어려운 상호작용 후 감정적으로 지쳤을 때 어떤 지지에 의지하나요?"},
+      {q:"🎭 [Role-play] A passenger becomes verbally aggressive toward a fellow crew member. When do you step in, and exactly what do you say?",k:"한 승객이 동료 승무원에게 언어적으로 공격적으로 변했어요. 언제 개입하고 정확히 무슨 말을 하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] You've been asked to take on an unfamiliar duty mid-flight because a colleague fell ill. How do you handle the pressure and where do you turn to for guidance?",k:"동료가 아파서 비행 중 익숙하지 않은 업무를 갑자기 맡게 됐어요. 어떻게 압박을 처리하고 누구에게 도움을 구하겠어요?",roleplay:true},
+    ],
+    ss:["What kind of challenge would you be most proud of taking on in your future career?","Describe a moment when you chose to step in rather than stay on the sidelines. What was the result?","Is there someone in your life you always turn to in difficult moments? What makes them so trustworthy?"],
+  },
+  {
+    w:4,m:1,theme:"Customer Service Excellence",sub:"Defining Excellence",
+    cheer:"탁월함은 특별한 날이 아니라 평범한 날들의 축적이에요. 지금 이 연습처럼요.",
+    expressions:[
+      {phrase:"Figure out",korean:"파악하다 / 해결책을 찾다",context:"복잡한 상황이나 문제를 분석해서 해결책을 찾거나 이해하게 될 때 써요. 일상에서 매우 자주 쓰이는 표현이에요.",en:"It took her a few days to figure out how to use the new project management software.",ko:"그녀가 새 프로젝트 관리 소프트웨어 사용법을 파악하는 데 며칠이 걸렸습니다."},
+      {phrase:"Check in on",korean:"안부를 챙기다 / 상태를 확인하다",context:"누군가의 상태나 상황이 괜찮은지 주기적으로 살피거나 확인할 때 써요. 배려를 표현하는 따뜻한 표현이에요.",en:"He makes a point of checking in on his close friends at least once a week.",ko:"그는 가까운 친구들의 안부를 적어도 일주일에 한 번은 챙기는 것을 중요하게 여깁니다."},
+      {phrase:"Go beyond",korean:"기대 이상을 하다 / ~을 넘어서다",context:"주어진 역할이나 기대치를 초월해 한 단계 더 나아갈 때 써요.",en:"He went beyond what was asked and redesigned the entire presentation from scratch.",ko:"그는 요청받은 것 이상을 해내며 프레젠테이션 전체를 처음부터 새로 디자인했습니다."},
+    ],
+    dq:[
+      {q:"How would you define 'excellence' in your own words — specifically in a service role?",k:"서비스 역할에서 '탁월함'을 자신의 말로 어떻게 정의하겠어요?"},
+      {q:"Describe a moment when you figured out a creative solution to an unexpected problem.",k:"예상치 못한 문제에 창의적인 해결책을 찾았던 순간을 말해주세요."},
+      {q:"How do you check in on your own performance to make sure you're always improving?",k:"항상 발전하고 있는지 확인하기 위해 스스로의 성과를 어떻게 점검하나요?"},
+      {q:"In what specific ways can a cabin crew member go beyond the basics to create memorable service?",k:"승무원이 기본을 넘어 기억에 남는 서비스를 만들기 위해 구체적으로 무엇을 할 수 있나요?"},
+      {q:"How do you figure out which passengers need extra attention or support without them asking?",k:"승객이 요청하지 않아도 추가 관심이나 지원이 필요한 승객을 어떻게 파악하나요?"},
+      {q:"Have you ever gone beyond what was expected of you in a previous job or experience? What drove you?",k:"이전 직업이나 경험에서 기대 이상을 했던 적이 있나요? 무엇이 그렇게 하게 했나요?"},
+      {q:"How would you check in on a passenger who seemed fine at boarding but now looks visibly distressed?",k:"탑승 시 괜찮아 보였지만 지금 눈에 띄게 힘들어 보이는 승객을 어떻게 살피겠어요?"},
+      {q:"What daily habits help you figure out the best approach when serving different types of passengers?",k:"다양한 유형의 승객을 서비스하는 최선의 방법을 파악하는 데 어떤 일상적인 습관이 도움이 되나요?"},
+      {q:"🎭 [Role-play] You figure out mid-flight that today is a passenger's birthday. Nothing has been prepared. What do you do to go beyond the ordinary?",k:"비행 중 한 승객이 오늘 생일임을 알게 됐는데 아무것도 준비되지 않았어요. 평범함을 넘어서기 위해 어떻게 하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] A colleague seems burned out and isn't performing well. How do you check in on them without making it awkward?",k:"동료가 번아웃된 것 같고 성과가 좋지 않아요. 어색하지 않게 어떻게 안부를 챙기겠어요?",roleplay:true},
+    ],
+    ss:["What does it take to truly go beyond expectations — and where do you personally draw the line?","How do you figure out your own blind spots and turn them into strengths?","Describe someone in your life who always checks in on others. What makes that quality so admirable?"],
+  },
+  {
+    w:5,m:2,theme:"Safety & Responsibility",sub:"Emergency Response Basics",
+    cheer:"안전을 지키는 사람이 된다는 것, 그것만으로도 충분히 멋진 일이에요.",
+    expressions:[
+      {phrase:"Stand by",korean:"대기하다 / 준비 상태를 유지하다",context:"지시나 상황에 따라 즉시 행동할 수 있도록 준비 상태를 유지할 때 써요. 군대·방송·일상 모두에서 쓰이는 표현이에요.",en:"The medical team stood by outside the operating room, ready to assist at any moment.",ko:"의료팀은 언제든 도울 준비를 하며 수술실 밖에서 대기했습니다."},
+      {phrase:"Watch out for",korean:"주의하다 / 경계하다 / 조심하다",context:"위험하거나 주의가 필요한 것을 미리 살피고 경계할 때 써요. 경고나 조언을 줄 때도 자주 써요.",en:"When hiking in unfamiliar areas, you should always watch out for slippery trails.",ko:"낯선 지역에서 하이킹할 때는 항상 미끄러운 길을 조심해야 합니다."},
+      {phrase:"Pull through",korean:"위기를 이겨내다 / 어려움을 극복하다",context:"어렵거나 위험한 상황을 끝까지 버티고 이겨낼 때 써요. 질병·실패·위기 등 다양한 상황에서 쓸 수 있어요.",en:"Despite a really tough semester, she pulled through and graduated with honors.",ko:"정말 힘든 학기였지만, 그녀는 이겨내고 우수한 성적으로 졸업했습니다."},
+    ],
+    dq:[
+      {q:"Why do you think safety awareness is the most fundamental quality of a cabin crew member?",k:"안전 의식이 승무원의 가장 기본적인 자질로 여겨지는 이유는 무엇이라고 생각하나요?"},
+      {q:"How do you stay mentally alert and on stand-by during a very long, quiet flight?",k:"매우 길고 조용한 비행 중에도 어떻게 정신적으로 대기 상태를 유지하겠어요?"},
+      {q:"What are the most important things a cabin crew member should watch out for during boarding?",k:"탑승 중 승무원이 가장 주의 깊게 살펴야 할 것들은 무엇인가요?"},
+      {q:"Have you ever helped someone pull through a difficult or scary situation? What did you do?",k:"어렵거나 무서운 상황을 이겨내도록 누군가를 도왔던 경험이 있나요?"},
+      {q:"How do you think cabin crew training prepares members to stand by and respond instantly in emergencies?",k:"승무원 훈련이 비상 상황에서 즉시 대응할 수 있도록 어떻게 준비시킨다고 생각하나요?"},
+      {q:"What would you watch out for when interacting with passengers who seem intoxicated?",k:"음주 상태로 보이는 승객과 상호작용할 때 무엇을 주의 깊게 살피겠어요?"},
+      {q:"How would you pull through a moment of personal fear during a real in-flight emergency?",k:"실제 기내 비상 상황에서 개인적인 두려움의 순간을 어떻게 이겨내겠어요?"},
+      {q:"If you were standing by at your station and noticed something unusual, what would your immediate steps be?",k:"담당 위치에서 대기 중 이상한 것을 발견했다면 즉각적인 조치는 무엇인가요?"},
+      {q:"🎭 [Role-play] A passenger suddenly collapses in the aisle. There is no doctor on board. Walk us through exactly what you do.",k:"한 승객이 갑자기 통로에서 쓰러졌어요. 기내에 의사가 없어요. 정확히 어떻게 하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] You notice an unusual smell from the overhead bin while standing by at your station. What are your next steps?",k:"담당 구역 수납함에서 이상한 냄새가 나요. 다음 단계는 무엇인가요?",roleplay:true},
+    ],
+    ss:["What does being on stand-by mentally — not just physically — mean to you?","How do you personally watch out for your own blind spots or bad habits?","Describe a time you or someone you know had to pull through something really difficult. What made it possible?"],
+  },
+  {
+    w:6,m:2,theme:"Safety & Responsibility",sub:"Following Safety Protocols",
+    cheer:"실수를 두려워하지 마세요. 배우는 사람만이 성장할 수 있어요.",
+    expressions:[
+      {phrase:"Look out for",korean:"적극적으로 살피다 / ~을 조심하다",context:"잠재적 위험이나 특별히 주의가 필요한 것을 능동적으로 확인하고 살필 때 써요.",en:"When traveling solo, it's important to look out for common tourist scams.",ko:"혼자 여행할 때는 흔한 관광객 사기를 주의 깊게 살피는 것이 중요합니다."},
+      {phrase:"Stay on top of",korean:"놓치지 않고 관리하다 / 계속 파악하다",context:"변화하는 상황이나 업무를 계속 모니터링하며 통제하에 두고 관리할 때 써요.",en:"She uses a daily planner to stay on top of all her deadlines and meetings.",ko:"그녀는 모든 마감일과 회의를 놓치지 않기 위해 일일 플래너를 사용합니다."},
+      {phrase:"Follow up",korean:"후속 조치를 하다 / 확인하다",context:"이전 대화·행동·약속의 결과를 확인하거나 추가 조치를 취할 때 써요. 비즈니스에서도 자주 쓰여요.",en:"She sent a follow-up email after the interview to thank them and restate her interest.",ko:"그녀는 면접 후 감사 인사와 관심을 재확인하기 위해 후속 이메일을 보냈습니다."},
+    ],
+    dq:[
+      {q:"Why is it important to follow safety protocols even when a flight seems perfectly routine?",k:"비행이 완전히 평범해 보일 때도 안전 프로토콜을 따르는 것이 왜 중요한가요?"},
+      {q:"How do you personally stay on top of multiple responsibilities without letting anything slip?",k:"여러 책임을 놓치지 않고 어떻게 관리하나요?"},
+      {q:"Describe a time when following up on something turned out to be more important than expected.",k:"후속 조치를 취한 결과 처음 생각보다 더 중요했던 경험을 말해주세요."},
+      {q:"What aspects of your own behavior do you look out for that might compromise your professional standards?",k:"전문적인 기준을 저해할 수 있는 자신의 행동을 어떻게 주의 깊게 살피나요?"},
+      {q:"How would you stay on top of safety checks during a particularly hectic or understaffed flight?",k:"특히 혼란스럽거나 인원이 부족한 비행 중 안전 점검을 어떻게 놓치지 않고 관리하겠어요?"},
+      {q:"How do you look out for your colleagues' well-being during a very demanding shift?",k:"매우 힘든 근무 중 동료들의 안녕을 어떻게 살피나요?"},
+      {q:"Can you think of a situation where following up after an issue prevented a bigger problem?",k:"문제 후 후속 조치가 더 큰 문제를 예방했던 상황을 생각해볼 수 있나요?"},
+      {q:"How would you respond if you noticed a colleague consistently not following a safety protocol?",k:"동료가 지속적으로 안전 프로토콜을 따르지 않는 것을 발견했다면 어떻게 하겠어요?"},
+      {q:"🎭 [Role-play] A passenger's carry-on bag is too large for the overhead bin and won't close safely. How do you look out for everyone's safety while staying friendly?",k:"승객의 가방이 너무 커서 수납함이 제대로 닫히지 않아요. 모두의 안전을 살피면서 어떻게 친절하게 처리하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] You forgot to follow up on a special meal request and it's now meal service time. How do you stay on top of the situation and fix it?",k:"특별 식사 확인을 잊었고 지금이 식사 시간이에요. 상황을 어떻게 파악하고 수습하겠어요?",roleplay:true},
+    ],
+    ss:["What system do you use to stay on top of your daily responsibilities without feeling overwhelmed?","How do you look out for signs that your team is starting to lose focus or discipline?","Why do you think it's important to always follow up, even when things seem to be going fine?"],
+  },
+  {
+    w:7,m:2,theme:"Safety & Responsibility",sub:"Judgment & Accountability",
+    cheer:"당신이 준비하는 이 시간들이 반드시 빛을 발할 날이 올 거예요.",
+    expressions:[
+      {phrase:"Pick up on",korean:"감지하다 / 눈치채다",context:"말로 표현되지 않은 신호·감정·분위기를 민감하게 감지할 때 써요.",en:"Good teachers quickly pick up on which students are struggling, even if they don't say anything.",ko:"훌륭한 선생님은 학생들이 아무 말도 하지 않아도 누가 어려움을 겪고 있는지 빠르게 감지합니다."},
+      {phrase:"Face up to",korean:"직면하다 / 책임을 인정하다",context:"어려운 현실이나 자신의 실수·책임을 회피하지 않고 당당히 마주할 때 써요.",en:"It took courage, but he finally faced up to his spending habits and started budgeting.",ko:"용기가 필요했지만, 그는 마침내 자신의 소비 습관을 직면하고 예산을 세우기 시작했습니다."},
+      {phrase:"Hold on to",korean:"유지하다 / 놓지 않다 / 붙잡다",context:"어려운 상황에서도 가치관·집중력·정체성 같은 중요한 것을 잃지 않으려 할 때 써요.",en:"No matter how stressful things got, she held on to her sense of humor.",ko:"아무리 스트레스가 심해도, 그녀는 유머 감각을 잃지 않았습니다."},
+    ],
+    dq:[
+      {q:"How would you describe the difference between simply following rules and exercising good judgment?",k:"규칙을 따르는 것과 좋은 판단력을 발휘하는 것의 차이를 어떻게 설명하겠어요?"},
+      {q:"Tell me about a time you picked up on something others missed. What did you do about it?",k:"다른 사람들이 놓친 것을 눈치챘던 경험을 말해주세요. 어떻게 했나요?"},
+      {q:"How do you face up to a mistake you made in front of your team or in a professional setting?",k:"팀 앞이나 직업적인 상황에서 실수를 어떻게 솔직하게 인정하나요?"},
+      {q:"What values or principles do you hold on to when you're under significant pressure?",k:"큰 압박을 받을 때 어떤 가치나 원칙을 붙잡고 있나요?"},
+      {q:"How do you develop your ability to pick up on subtle cues from people around you?",k:"주변 사람들의 미묘한 신호를 감지하는 능력을 어떻게 키우나요?"},
+      {q:"Describe a moment when facing up to a difficult truth actually improved your situation.",k:"어려운 진실을 직면한 것이 실제로 상황을 개선했던 순간을 말해주세요."},
+      {q:"What aspects of your personality do you hold on to no matter what environment you are in?",k:"어떤 환경에서도 놓지 않는 자신의 성격적 특성은 무엇인가요?"},
+      {q:"How would you pick up on signs that a fellow crew member is not performing their duties safely?",k:"동료 승무원이 안전하게 의무를 수행하지 않는다는 신호를 어떻게 감지하겠어요?"},
+      {q:"🎭 [Role-play] You pick up on a tense situation developing between two seated passengers. Neither has asked for help. What do you do?",k:"나란히 앉은 두 승객 사이에 긴장된 상황이 생기는 것을 감지했어요. 아직 아무도 도움을 요청하지 않았어요. 어떻게 하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] You realize you made an error during the safety demonstration. How do you face up to it and correct the situation professionally?",k:"안전 시범에서 실수를 했다는 걸 알게 됐어요. 어떻게 직면하고 전문적으로 수정하겠어요?",roleplay:true},
+    ],
+    ss:["Are there things in your current life you know you need to face up to but haven't yet? Why?","What's something you've held on to from your upbringing that still shapes how you act today?","How do you train yourself to pick up on things that others tend to overlook?"],
+  },
+  {
+    w:8,m:2,theme:"Safety & Responsibility",sub:"Staying Calm in Crisis",
+    cheer:"침착함은 타고나는 게 아니라 연습하는 거예요. 오늘도 그 연습 중이에요.",
+    expressions:[
+      {phrase:"Set aside",korean:"제쳐두다 / 따로 비축해두다",context:"감정·개인적인 문제를 잠시 제쳐두고 우선순위에 집중할 때, 또는 시간·돈을 특정 목적을 위해 따로 남겨둘 때 써요.",en:"She set aside two hours every morning for focused deep work before checking emails.",ko:"그녀는 이메일을 확인하기 전에 집중적인 깊은 작업을 위해 매일 아침 두 시간을 따로 비워뒀습니다."},
+      {phrase:"Rule out",korean:"배제하다 / 가능성을 제거하다",context:"특정 가능성이나 원인을 검토 후 해당되지 않는다고 판단하여 제외할 때 써요.",en:"The doctor ran several tests to rule out any serious underlying conditions.",ko:"의사는 심각한 기저 질환을 배제하기 위해 여러 검사를 실시했습니다."},
+      {phrase:"Keep up with",korean:"따라가다 / 뒤처지지 않다",context:"빠르게 변화하는 상황·정보·사람의 속도에 맞춰 지속적으로 따라가거나 유지할 때 써요.",en:"It's hard to keep up with all the updates in the tech industry — things change so fast.",ko:"기술 업계의 모든 업데이트를 따라가기 어려워요 — 너무 빠르게 변화하거든요."},
+    ],
+    dq:[
+      {q:"How do you set aside personal anxiety or stress when you need to perform at your very best?",k:"최상의 성과를 내야 할 때 개인적인 불안이나 스트레스를 어떻게 제쳐두나요?"},
+      {q:"When facing an in-flight emergency, how would you systematically rule out different possible causes?",k:"기내 비상 상황에서 다양한 가능 원인을 어떻게 체계적으로 배제하겠어요?"},
+      {q:"How do you keep up with the physical and emotional demands of a job with constantly irregular hours?",k:"불규칙한 근무 시간의 직업의 신체적·감정적 요구에 어떻게 뒤처지지 않겠어요?"},
+      {q:"What personal techniques do you use to stay calm when everything seems to be happening at once?",k:"모든 것이 동시에 일어나는 것 같을 때 침착함을 유지하기 위해 어떤 개인적인 기술을 사용하나요?"},
+      {q:"Why is the ability to set aside discomfort a crucial skill for cabin crew in safety situations?",k:"불편함을 제쳐두는 능력이 안전 상황에서 왜 중요한 기술인가요?"},
+      {q:"How would you keep up with new safety regulations or updated procedures after your initial training?",k:"초기 교육 후 새로운 안전 규정이나 업데이트된 절차를 어떻게 따라가겠어요?"},
+      {q:"How do you rule out panic as a response when you are genuinely frightened in a high-stakes moment?",k:"실제로 두렵고 위험한 순간에 패닉을 반응으로 배제하기 위해 어떻게 하나요?"},
+      {q:"Have you ever had to keep up with a fast-paced or high-pressure environment? How did you manage?",k:"매우 빠른 속도나 고압적인 환경에 따라가야 했던 적이 있나요? 어떻게 했나요?"},
+      {q:"🎭 [Role-play] Sudden turbulence hits and a passenger in the aisle panics and stands up. How do you set aside your own startle response and manage the situation?",k:"갑작스러운 난기류에 통로 승객이 패닉에 빠져 일어서려 해요. 당신의 놀람 반응을 제쳐두고 어떻게 상황을 관리하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] A strong smell fills the cabin and passengers are anxious. Rule out common causes quickly while keeping everyone calm. Walk us through your thinking.",k:"기내에 강한 냄새가 나고 승객들이 불안해하고 있어요. 흔한 원인들을 빠르게 배제하면서 모두를 진정시켜야 해요. 생각 과정을 설명해주세요.",roleplay:true},
+    ],
+    ss:["What's something important you've had to set aside in order to achieve something meaningful?","How do you rule out self-doubt when entering a high-pressure situation?","What helps you keep up with the emotional demands of helping others through stressful moments?"],
+  },
+  {
+    w:9,m:3,theme:"Leadership & Initiative",sub:"Being a Leader in Your Team",
+    cheer:"리더는 직책이 아니라 태도예요. 당신은 이미 리더의 자질을 갖추고 있어요.",
+    expressions:[
+      {phrase:"Take over",korean:"인계받다 / 장악하다",context:"누군가의 역할이나 책임을 이어받거나, 어떤 상황을 직접 맡아 이끌 때 써요.",en:"When the team leader left unexpectedly, she quietly took over and kept everything on track.",ko:"팀장이 갑자기 떠났을 때, 그녀는 조용히 역할을 인계받아 모든 것을 순조롭게 진행시켰습니다."},
+      {phrase:"Build up",korean:"쌓아 올리다 / 강화하다",context:"신뢰·역량·자신감·관계 등을 점차적으로 키우거나 강화할 때 써요.",en:"It took months to build up enough confidence to present in front of large audiences.",ko:"대규모 청중 앞에서 발표할 자신감을 쌓는 데 몇 달이 걸렸습니다."},
+      {phrase:"Point out",korean:"지적하다 / 알려주다",context:"중요하거나 간과된 사실을 상대방에게 알리거나 주의를 환기시킬 때 써요.",en:"She kindly pointed out the typo in the report before I submitted it to the manager.",ko:"그녀는 내가 매니저에게 보고서를 제출하기 전에 친절하게 오타를 알려주었습니다."},
+    ],
+    dq:[
+      {q:"What qualities do you believe make someone a natural leader within a cabin crew team?",k:"승무원 팀에서 자연스러운 리더가 될 수 있는 자질은 무엇이라고 생각하나요?"},
+      {q:"Have you ever had to take over a situation when no one else was stepping up? What happened?",k:"아무도 나서지 않을 때 상황을 직접 맡아야 했던 경험이 있나요?"},
+      {q:"How would you build up trust with a new team you've never worked with before?",k:"처음 함께 일하는 새 팀과 신뢰를 어떻게 쌓겠어요?"},
+      {q:"How do you point out a problem to a colleague without damaging your working relationship?",k:"업무 관계를 해치지 않으면서 동료에게 문제를 어떻게 지적하나요?"},
+      {q:"What is the difference between being assertive and being aggressive in a leadership role?",k:"리더 역할에서 자기주장이 강한 것과 공격적인 것의 차이는 무엇인가요?"},
+      {q:"How would you take over responsibility from a senior crew member who is handling a situation poorly?",k:"상황을 잘못 처리하고 있는 선임으로부터 어떻게 역할을 인계받겠어요?"},
+      {q:"What is the most important quality you want to build up in yourself before stepping into a leadership position?",k:"리더 자리에 서기 전에 자신 안에서 가장 중요하게 쌓아야 할 자질은 무엇인가요?"},
+      {q:"How do you point out safety concerns to more senior colleagues without seeming disrespectful?",k:"더 경험 많은 동료에게 무례하게 보이지 않으면서 안전 우려를 어떻게 지적하겠어요?"},
+      {q:"🎭 [Role-play] Your cabin manager is suddenly unavailable mid-flight. You're the most senior remaining crew member. How do you take over and manage the rest of the flight?",k:"비행 중 갑자기 객실장이 자리를 비우게 됐어요. 남은 승무원 중 가장 선임이에요. 어떻게 역할을 인계받겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] A new colleague is making the same small mistake repeatedly during service. How do you point it out in a way that builds them up rather than discourages them?",k:"신입 동료가 서비스 중 같은 작은 실수를 반복하고 있어요. 낙담시키지 않으면서 어떻게 지적하겠어요?",roleplay:true},
+    ],
+    ss:["What kind of leader do you want to be known as — and what are you actively doing to build that up?","Describe a moment when you took over a situation unexpectedly. What did it teach you about yourself?","Is pointing out someone's mistake ever an act of kindness? Explain your thinking."],
+  },
+  {
+    w:10,m:3,theme:"Leadership & Initiative",sub:"Taking Initiative",
+    cheer:"먼저 행동하는 사람이 기회를 만들어요. 당신의 적극성이 빛날 거예요.",
+    expressions:[
+      {phrase:"Rise to",korean:"(기회·도전에) 부응하다 / 역량을 발휘하다",context:"어려운 상황이나 기회가 왔을 때 기대에 걸맞게 역량을 발휘하거나 도전을 받아들일 때 써요.",en:"When the stakes were high, she rose to the occasion and delivered a flawless presentation.",ko:"기대가 높았을 때, 그녀는 상황에 부응하여 흠잡을 데 없는 발표를 했습니다."},
+      {phrase:"Look up to",korean:"존경하다 / 롤모델로 삼다",context:"누군가를 존경하거나 롤모델로 삼을 때 써요. 부모·선생님·선배·유명인 등 다양한 대상에 쓸 수 있어요.",en:"Growing up, she looked up to her aunt who built a business from nothing.",ko:"어릴 때, 그녀는 아무것도 없이 사업을 일군 이모를 존경했습니다."},
+      {phrase:"Bring out",korean:"이끌어내다 / 드러나게 하다",context:"잠재된 능력·장점·특성을 겉으로 드러나게 만들 때 써요.",en:"A great mentor knows how to bring out the best in every member of the team.",ko:"훌륭한 멘토는 팀의 모든 구성원에게서 최선을 이끌어내는 방법을 알고 있습니다."},
+    ],
+    dq:[
+      {q:"Can you describe a time when you took initiative without being asked to? What motivated you?",k:"요청받지 않았는데 먼저 나서서 행동했던 경험을 말해주세요. 무엇이 동기가 됐나요?"},
+      {q:"Who do you look up to most in your life, and what specific qualities have you tried to adopt from them?",k:"삶에서 가장 존경하는 사람은 누구이고, 그 사람에게서 어떤 자질을 본받으려 했나요?"},
+      {q:"How do you bring out the best in people who seem demotivated or disengaged?",k:"의욕이 없거나 집중하지 못하는 사람들에게서 최선을 어떻게 이끌어내나요?"},
+      {q:"How do you rise to the occasion when you feel unprepared or out of your depth?",k:"준비가 안 됐거나 능력 밖이라고 느낄 때 어떻게 상황에 부응하나요?"},
+      {q:"What does taking initiative look like in a cabin crew context, and why is it valued?",k:"승무원 맥락에서 주도적으로 행동한다는 것은 어떤 의미이고, 왜 그 가치가 중요한가요?"},
+      {q:"Have you ever looked up to a colleague or superior in a workplace? What did you learn from watching them?",k:"직장에서 동료나 상사를 존경했던 적이 있나요? 그들을 보며 무엇을 배웠나요?"},
+      {q:"How can a cabin crew member bring out a sense of calm and trust in passengers during a stressful flight?",k:"승무원이 스트레스가 많은 비행 중 승객들에게 어떻게 침착함과 신뢰감을 이끌어낼 수 있나요?"},
+      {q:"Describe a challenge you rose to that you're particularly proud of. What did it reveal about your character?",k:"특히 자랑스러운 도전에 부응했던 경험을 말해주세요. 그것이 자신의 성격에 대해 무엇을 드러냈나요?"},
+      {q:"🎭 [Role-play] The boarding process is chaotic and your supervisor is tied up. How do you rise to the occasion and take initiative to manage the situation?",k:"탑승 과정이 혼란스럽고 상관이 바쁜 상황이에요. 어떻게 상황에 부응하며 주도적으로 관리하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] You notice a passenger who nervously looks to you for reassurance during heavy turbulence. How do you bring out calm and confidence in that moment?",k:"심한 난기류 중 한 승객이 안심을 구하며 당신을 바라보고 있어요. 그 순간 어떻게 침착함과 자신감을 이끌어내겠어요?",roleplay:true},
+    ],
+    ss:["What's one area of your life where you wish you had risen to the challenge sooner?","Who do you look up to in the world of aviation, and what makes them stand out to you?","What kind of environment brings out the best version of you — and how do you create that for yourself?"],
+  },
+  {
+    w:11,m:3,theme:"Leadership & Initiative",sub:"Mediating Conflict",
+    cheer:"갈등을 피하는 것보다 해결하는 사람이 진짜 강한 사람이에요.",
+    expressions:[
+      {phrase:"Set out",korean:"시작하다 / 목표를 가지고 출발하다",context:"무언가를 목적을 가지고 시작하거나 계획을 가지고 행동에 나설 때 써요.",en:"She set out to learn a new language and studied every single day for a year.",ko:"그녀는 새로운 언어를 배우기 시작했고 1년 동안 매일 공부했습니다."},
+      {phrase:"Call on",korean:"~에게 요청하다 / 역량을 발휘하다",context:"누군가에게 도움·발언·행동을 요청할 때, 또는 스스로의 내적 자원이나 역량을 발휘할 때 써요.",en:"The professor called on her to share her perspective on the topic in front of the class.",ko:"교수님은 그녀에게 수업 전체 앞에서 그 주제에 대한 관점을 공유해달라고 요청했습니다."},
+      {phrase:"Take pride in",korean:"~을 자랑스럽게 여기다 / 자부심을 갖다",context:"자신이 하는 일이나 성취에 자부심과 만족감을 가질 때 써요.",en:"He takes pride in always being on time — it's become a personal standard for him.",ko:"그는 항상 시간을 지키는 것에 자부심을 느껴요 — 그것이 그의 개인적인 기준이 됐습니다."},
+    ],
+    dq:[
+      {q:"What approach do you take when mediating a conflict between two people who both feel they are right?",k:"둘 다 자신이 옳다고 느끼는 두 사람 사이의 갈등을 중재할 때 어떤 접근 방식을 취하나요?"},
+      {q:"Tell me about a conflict you set out to resolve. How did you approach it, and what was the outcome?",k:"해결하기로 마음먹고 나섰던 갈등에 대해 말해주세요. 어떻게 접근했고 결과는 어떻게 됐나요?"},
+      {q:"How do you call on your inner strength or patience when dealing with a very heated dispute?",k:"매우 격렬한 분쟁을 처리할 때 어떻게 내면의 힘이나 인내심을 발휘하나요?"},
+      {q:"What do you take pride in most about the way you handle interpersonal conflict?",k:"대인 갈등을 처리하는 방식에서 가장 자랑스럽게 여기는 것은 무엇인가요?"},
+      {q:"How would you set out to resolve a long-standing tension between two crew members?",k:"두 승무원 사이의 오래된 긴장을 해소하기 위해 어떻게 나서겠어요?"},
+      {q:"Is there a time you were called on to resolve a conflict unexpectedly? How did you handle the pressure?",k:"예상치 못하게 갈등 해결을 요청받은 적이 있나요? 그 압박을 어떻게 처리했나요?"},
+      {q:"How do you take pride in your work on days when the effort goes unnoticed or unrecognized?",k:"노력이 눈에 띄지 않거나 인정받지 못하는 날에도 자신의 일에 어떻게 자부심을 갖나요?"},
+      {q:"When two passengers have a conflict, how do you set out to understand both sides fairly?",k:"두 승객 사이에 갈등이 있을 때 양쪽 모두를 공정하게 이해하기 위해 어떻게 나서나요?"},
+      {q:"🎭 [Role-play] Two passengers are arguing over the window shade. Neither will back down. How do you call on your mediation skills to resolve it?",k:"두 승객이 창문 커버를 두고 다투고 있어요. 어느 쪽도 물러서지 않아요. 중재 능력을 어떻게 발휘해 해결하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] A passenger complains loudly that another passenger is taking up shared armrest space. You set out to handle it before it escalates. What do you say?",k:"한 승객이 다른 승객이 공용 팔걸이 공간을 차지한다고 크게 불평해요. 상황이 악화되기 전에 나서려고 해요. 무슨 말을 하겠어요?",roleplay:true},
+    ],
+    ss:["What are you most proud of in terms of how you handle difficult interpersonal situations?","Describe a conflict you set out to resolve that taught you something unexpected about yourself.","When is it appropriate to call on someone else to help you resolve a conflict, rather than handling it alone?"],
+  },
+  {
+    w:12,m:3,theme:"Leadership & Initiative",sub:"Leading by Example",
+    cheer:"말이 아닌 행동으로 보여주는 사람, 그게 바로 당신이에요.",
+    expressions:[
+      {phrase:"Lay out",korean:"설명하다 / 명확하게 제시하다",context:"계획·정보·기대사항 등을 명확하고 체계적으로 설명하거나 제시할 때 써요.",en:"Before the group project started, she laid out her expectations and each person's responsibilities.",ko:"그룹 프로젝트가 시작되기 전에, 그녀는 기대사항과 각자의 책임을 명확하게 제시했습니다."},
+      {phrase:"Lead through",korean:"(어려운 상황을) 이끌어 나가다",context:"불확실하거나 어려운 상황에서 팀이나 사람들을 이끌며 헤쳐나갈 때 써요.",en:"She led her team through a major company restructuring with transparency and steady communication.",ko:"그녀는 투명하고 꾸준한 소통으로 팀을 대규모 회사 구조조정 과정을 통해 이끌었습니다."},
+      {phrase:"Move forward",korean:"앞으로 나아가다 / 전진하다",context:"과거의 실수나 어려움에서 벗어나 앞으로 나아갈 때, 또는 계획을 진행시킬 때 써요.",en:"After the difficult breakup, it took time, but she was eventually able to move forward.",ko:"힘든 이별 후, 시간이 걸렸지만 그녀는 결국 앞으로 나아갈 수 있었습니다."},
+    ],
+    dq:[
+      {q:"What does it mean to 'lead by example' in the context of cabin crew service?",k:"승무원 서비스 맥락에서 '모범을 보이며 이끈다'는 것은 어떤 의미인가요?"},
+      {q:"How do you lay out your expectations clearly when working with a new team or partner?",k:"새로운 팀이나 파트너와 일할 때 기대사항을 어떻게 명확하게 제시하나요?"},
+      {q:"Describe a time when you helped someone — or yourself — move forward after a setback.",k:"실패 후 누군가 또는 자신이 앞으로 나아가도록 도왔던 경험을 말해주세요."},
+      {q:"What qualities do you believe are most important for leading through uncertainty or change?",k:"불확실성이나 변화를 이끌어 나가는 데 가장 중요한 자질은 무엇이라고 생각하나요?"},
+      {q:"How do you lay out a professional image before you've even said a word — through body language?",k:"한마디도 하기 전에 바디랭귀지와 존재감으로 어떻게 전문적인 이미지를 제시하나요?"},
+      {q:"Can you describe how a leader in your past helped you move forward during a difficult period?",k:"과거에 한 리더가 어려운 시기에 앞으로 나아가도록 도와줬던 경험을 말해주세요."},
+      {q:"How would you lead through a situation where the team is demoralized after a difficult incident?",k:"힘든 사건 후 팀의 사기가 떨어진 상황을 어떻게 이끌어 나가겠어요?"},
+      {q:"Is it harder to lead by example when you're new to a team? How do you lay out your credibility early on?",k:"팀에 새로 들어왔을 때 모범을 보이며 이끄는 것이 더 어렵나요? 초반에 신뢰를 어떻게 제시하나요?"},
+      {q:"🎭 [Role-play] A junior crew member is visibly nervous before their first flight. How do you lead through the pre-departure prep to calm them down?",k:"주니어 승무원이 첫 비행 전 눈에 띄게 긴장하고 있어요. 출발 전 준비 과정을 어떻게 이끌어 진정시키겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] Mid-flight, the service is falling behind. You need to lay out a quick plan to move forward and catch up without panicking the team. What do you say?",k:"비행 중 서비스가 지연되고 있어요. 팀을 패닉시키지 않으면서 빠르게 계획을 제시하고 앞으로 나아가야 해요. 무슨 말을 하겠어요?",roleplay:true},
+    ],
+    ss:["What's the most important thing you consistently do that others could say is 'leading by example'?","Describe a time when someone laid out a vision so clearly that it changed how you approached your work.","How do you personally move forward after a professional failure — what's your process?"],
+  },
+  {
+    w:13,m:4,theme:"Emotional Intelligence & Empathy",sub:"Recognizing Emotions",
+    cheer:"감정을 이해하는 것은 지식이 아니라 용기예요. 그 용기를 갖춘 당신을 응원해요.",
+    expressions:[
+      {phrase:"Tune in to",korean:"~에 귀 기울이다 / 주의를 기울이다",context:"누군가의 감정·필요·분위기에 주의를 기울이거나 민감하게 집중할 때 써요.",en:"Good friends know how to tune in to each other's feelings without needing long explanations.",ko:"좋은 친구들은 긴 설명 없이도 서로의 감정에 귀 기울이는 방법을 알고 있습니다."},
+      {phrase:"Warm up to",korean:"~에 마음을 열다 / 점차 좋아하게 되다",context:"처음에는 낯설거나 거리감이 있었지만 시간이 지나면서 친근하게 느끼거나 마음을 열게 될 때 써요.",en:"She was quiet at first, but she slowly warmed up to her new colleagues over the next few weeks.",ko:"그녀는 처음에 조용했지만, 몇 주에 걸쳐 새로운 동료들에게 서서히 마음을 열었습니다."},
+      {phrase:"Ease into",korean:"천천히 적응하다 / 조심스럽게 시작하다",context:"급하게 뛰어들지 않고 천천히 적응하거나 자연스럽게 시작할 때 써요.",en:"Instead of a total lifestyle overhaul, she decided to ease into healthier habits one at a time.",ko:"완전한 생활 방식 개편 대신, 그녀는 건강한 습관에 하나씩 천천히 적응하기로 했습니다."},
+    ],
+    dq:[
+      {q:"How do you tune in to the emotional state of someone who hasn't said anything is wrong?",k:"아무 이상이 없다고 말하지 않은 누군가의 감정 상태에 어떻게 귀 기울이나요?"},
+      {q:"Describe someone in your life you warmed up to slowly. What made you open up in the end?",k:"천천히 마음을 열었던 사람에 대해 말해주세요. 결국 마음을 열게 된 계기는 무엇인가요?"},
+      {q:"How do you ease into a difficult conversation with someone who is clearly upset?",k:"명백히 화가 난 누군가와 어려운 대화를 어떻게 자연스럽게 시작하나요?"},
+      {q:"What role does emotional intelligence play in delivering excellent cabin crew service?",k:"감성 지능이 탁월한 승무원 서비스를 제공하는 데 어떤 역할을 하나요?"},
+      {q:"How do you tune in to team dynamics to know if something is off among your crew?",k:"무언가 잘못되고 있는지 알기 위해 팀 역학에 어떻게 귀 기울이나요?"},
+      {q:"Have you ever warmed up to a situation or role that initially felt uncomfortable? What shifted?",k:"처음에는 불편했던 상황이나 역할에 마음을 열게 된 경험이 있나요? 무엇이 달라졌나요?"},
+      {q:"Why is it important to ease into interactions with anxious passengers rather than rushing to solve things?",k:"불안한 승객과의 상호작용에서 급히 해결하려 하기보다 천천히 접근하는 것이 왜 중요한가요?"},
+      {q:"How do you recognize when a passenger is emotionally overwhelmed, and what are your first steps?",k:"승객이 감정적으로 압도됐다는 것을 어떻게 인식하고, 첫 번째 조치는 무엇인가요?"},
+      {q:"🎭 [Role-play] A passenger is tuned out, headphones on, clearly not okay. How do you ease into checking on them without being intrusive?",k:"한 승객이 헤드폰을 끼고 있고 명백히 괜찮지 않아 보여요. 방해하지 않으면서 어떻게 자연스럽게 안부를 확인하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] A first-time flyer hasn't warmed up to anyone and is clearly nervous. How do you tune in to their needs and help them ease into the experience?",k:"첫 번째 비행하는 승객이 누구에게도 마음을 열지 않고 긴장한 것 같아요. 어떻게 그들의 필요에 귀 기울이고 경험에 적응하도록 돕겠어요?",roleplay:true},
+    ],
+    ss:["Who in your life has the best ability to tune in to others? What do they do that makes you feel heard?","Describe a situation you had to ease into. What made it feel worth it in the end?","Is there a person or type of person it's harder for you to warm up to? Why do you think that is?"],
+  },
+  {
+    w:14,m:4,theme:"Emotional Intelligence & Empathy",sub:"The Power of Empathy",
+    cheer:"공감은 가장 강력한 연결의 언어예요. 오늘도 그 언어를 연습하고 있어요.",
+    expressions:[
+      {phrase:"Hold back",korean:"억제하다 / 자제하다 / 망설이다",context:"감정·반응·눈물 등을 억누르거나, 하고 싶은 말이나 행동을 자제할 때 써요.",en:"She could barely hold back tears when her team surprised her with a farewell party.",ko:"팀이 깜짝 송별 파티를 열어줬을 때, 그녀는 눈물을 거의 참을 수 없었습니다."},
+      {phrase:"Draw on",korean:"(경험·능력을) 활용하다 / 끌어내다",context:"이전 경험·지식·자질을 적극적으로 활용하거나 그것에서 힘을 끌어낼 때 써요.",en:"In her new role, she drew on years of volunteer experience to connect with people from all walks of life.",ko:"새로운 역할에서, 그녀는 수년간의 자원봉사 경험을 활용해 다양한 배경의 사람들과 연결됐습니다."},
+      {phrase:"Commit to",korean:"헌신하다 / ~을 약속하다 / 전념하다",context:"무언가에 진지하게 헌신하거나 그것을 지키겠다고 약속할 때 써요.",en:"He committed to running every morning for 30 days, and by the end, it had become a real habit.",ko:"그는 30일 동안 매일 아침 달리기를 하겠다고 다짐했고, 결국 그것이 진짜 습관이 됐습니다."},
+    ],
+    dq:[
+      {q:"What does empathy actually look like in action during a flight — can you give a specific example?",k:"비행 중 공감이 실제 행동으로 어떻게 나타나는지 구체적인 예를 들어 설명해주세요."},
+      {q:"Describe a time you had to hold back your personal reaction in order to better support someone else.",k:"다른 사람을 더 잘 지원하기 위해 개인적인 반응을 자제해야 했던 경험을 말해주세요."},
+      {q:"What past experiences do you draw on when you need to empathize with someone going through a tough time?",k:"힘든 시간을 보내는 누군가에게 공감해야 할 때 어떤 과거 경험을 활용하나요?"},
+      {q:"How do you commit to being empathetic on days when you're tired or emotionally drained yourself?",k:"당신 자신이 피곤하거나 감정적으로 지친 날에도 어떻게 공감하는 것에 전념하나요?"},
+      {q:"How do you hold back the urge to immediately problem-solve when someone just needs to feel heard?",k:"누군가 그냥 들어주기만을 원할 때 즉각적으로 문제를 해결하려는 충동을 어떻게 자제하나요?"},
+      {q:"In what ways do you draw on cultural background or travel experience to better empathize with passengers?",k:"문화적 배경이나 여행 경험을 어떻게 활용해 승객에게 더 잘 공감하나요?"},
+      {q:"If a passenger is grieving or visibly emotional, how would you commit to supporting them appropriately?",k:"슬픔에 잠기거나 감정적으로 보이는 승객이 있다면, 어떻게 적절하게 지원하겠다고 다짐하나요?"},
+      {q:"Is there a limit to empathy in a professional context? Where do you draw the line?",k:"직업적 맥락에서 공감에 한계가 있나요? 어디서 선을 긋나요?"},
+      {q:"🎭 [Role-play] A passenger starts crying quietly during the flight. They say 'I'm fine' when you check. How do you draw on your empathy without pushing too hard?",k:"비행 중 한 승객이 조용히 울고 있어요. 확인하면 '괜찮아요'라고 해요. 너무 강요하지 않으면서 공감 능력을 어떻게 발휘하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] A passenger has been very rude to you. How do you hold back your reaction and commit to treating them with empathy anyway?",k:"한 승객이 당신에게 매우 무례하게 굴고 있어요. 어떻게 반응을 자제하고 여전히 공감으로 대하겠다고 다짐하나요?",roleplay:true},
+    ],
+    ss:["What's the most empathetic thing someone has ever done for you, and how did it change you?","Describe something from your past you still draw on regularly for strength or insight.","What are you most deeply committed to — and what would it cost you to give that up?"],
+  },
+  {
+    w:15,m:4,theme:"Emotional Intelligence & Empathy",sub:"Self-Regulation",
+    cheer:"스스로를 조절하는 사람이 결국 가장 멀리 가요. 당신은 그 길 위에 있어요.",
+    expressions:[
+      {phrase:"Settle into",korean:"안정적으로 자리잡다 / 편안해지다",context:"새로운 환경·역할·일상에 점차 적응하여 안정감을 느끼게 될 때 써요.",en:"It took about a month, but she finally settled into the rhythm of her new job.",ko:"한 달쯤 걸렸지만, 그녀는 마침내 새 직장의 리듬에 안정적으로 자리를 잡았습니다."},
+      {phrase:"Wind down",korean:"긴장을 풀다 / 서서히 마무리하다",context:"긴장이나 활동이 서서히 줄어들며 안정되거나 쉬는 상태로 가는 것을 표현할 때 써요.",en:"After a long week at work, she liked to wind down by taking a long bath and reading.",ko:"긴 한 주의 업무 후, 그녀는 긴 목욕을 하고 책을 읽으며 긴장을 푸는 걸 좋아했습니다."},
+      {phrase:"Bounce back",korean:"(빠르게) 회복하다 / 다시 일어서다",context:"실패·실망·어려움 후에 빠르게 회복하거나 다시 활력을 찾을 때 써요.",en:"He lost the deal but bounced back quickly and was already working on the next pitch by Monday.",ko:"그는 거래를 잃었지만 빠르게 회복해서 월요일에는 이미 다음 제안 작업을 하고 있었습니다."},
+    ],
+    dq:[
+      {q:"What does emotional self-regulation mean to you, and why is it important in a cabin crew role?",k:"감정적 자기 조절은 당신에게 어떤 의미이고, 승무원 역할에서 왜 중요한가요?"},
+      {q:"How long did it take you to settle into a role or environment that initially felt uncomfortable?",k:"처음에 불편하게 느껴졌던 역할이나 환경에 안정적으로 자리잡는 데 얼마나 걸렸나요?"},
+      {q:"What is your go-to way to wind down after a particularly difficult or emotionally charged day?",k:"특히 어렵거나 감정적으로 힘든 날 후에 긴장을 푸는 나만의 방법은 무엇인가요?"},
+      {q:"How do you bounce back after receiving harsh feedback or criticism at work?",k:"직장에서 혹독한 피드백이나 비판을 받은 후 어떻게 회복하나요?"},
+      {q:"How do you settle into a calm, professional state before a long-haul flight when you're tired or stressed?",k:"피곤하거나 스트레스를 받을 때 장거리 비행 전 어떻게 침착하고 전문적인 상태로 자리잡나요?"},
+      {q:"When you can't wind down after a tough situation on a flight, how do you still perform at your best?",k:"비행에서 힘든 상황 후 긴장이 풀리지 않을 때, 어떻게 여전히 최선을 다하나요?"},
+      {q:"What factors make it easier or harder for you to bounce back from disappointment?",k:"실망에서 회복하는 것을 더 쉽게 또는 더 어렵게 만드는 요소들은 무엇인가요?"},
+      {q:"How do you recognize when your emotions are affecting your judgment, and what do you do about it?",k:"감정이 판단력에 영향을 미치고 있다는 것을 어떻게 인식하고, 그것에 대해 어떻게 하나요?"},
+      {q:"🎭 [Role-play] A passenger has just spoken to you very rudely and you're clearly flustered. The next passenger is waiting. How do you settle into a professional state in seconds?",k:"방금 한 승객이 당신에게 매우 무례하게 말했고 당신은 당황했어요. 다음 승객이 기다리고 있어요. 어떻게 몇 초 안에 전문적인 상태로 자리잡겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] It's the end of a very long flight and you're exhausted. A passenger needs emotional support. How do you wind down your own stress and give them your full presence?",k:"매우 긴 비행의 끝이고 당신은 지쳐 있어요. 한 승객이 감정적인 지원이 필요해요. 자신의 스트레스를 풀고 어떻게 온전히 함께하겠어요?",roleplay:true},
+    ],
+    ss:["How have you personally gotten better at settling into uncomfortable situations over time?","What's your current ritual for winding down — and does it actually work?","What's the fastest you've ever bounced back from something that seemed devastating at the time?"],
+  },
+  {
+    w:16,m:4,theme:"Emotional Intelligence & Empathy",sub:"Offering Emotional Support",
+    cheer:"누군가에게 진심 어린 지지가 되는 것, 그게 당신이 꿈꾸는 승무원의 모습이에요.",
+    expressions:[
+      {phrase:"Focus on",korean:"~에 집중하다 / 초점을 맞추다",context:"특정 목표·사람·과제에 주의와 에너지를 집중할 때 써요.",en:"During the difficult negotiation, she focused on finding common ground rather than winning.",ko:"어려운 협상 중, 그녀는 이기는 것보다 공통점을 찾는 데 집중했습니다."},
+      {phrase:"Open up to",korean:"마음을 열다 / 속내를 털어놓다",context:"감정·속마음·비밀을 상대에게 솔직하게 털어놓거나 마음을 열 때 써요.",en:"He rarely opens up to people, but something about her made him feel safe enough to share.",ko:"그는 사람들에게 마음을 잘 열지 않는데, 그녀의 무언가가 그를 충분히 안심하게 만들어 이야기를 나눴습니다."},
+      {phrase:"Connect with",korean:"교감하다 / 연결되다 / 소통하다",context:"사람과 깊이 교감하거나 감정적으로 연결될 때 써요.",en:"She connected with people from every background during her gap year abroad.",ko:"그녀는 해외에서의 갭이어 동안 모든 배경을 가진 사람들과 교감했습니다."},
+    ],
+    dq:[
+      {q:"How do you focus on a passenger's emotional needs when you have multiple service tasks to complete?",k:"완수해야 할 여러 서비스 업무가 있을 때 승객의 감정적 필요에 어떻게 집중하나요?"},
+      {q:"Describe a time someone opened up to you unexpectedly. How did you respond?",k:"누군가가 예상치 못하게 마음을 열었던 경험을 말해주세요. 어떻게 반응했나요?"},
+      {q:"How do you connect with passengers from very different cultural or personal backgrounds?",k:"매우 다른 문화적 또는 개인적 배경을 가진 승객들과 어떻게 교감하나요?"},
+      {q:"Is it ever appropriate for a cabin crew member to open up to a passenger? Where is the boundary?",k:"승무원이 승객에게 마음을 여는 것이 적절한 경우가 있나요? 경계는 어디에 있나요?"},
+      {q:"How do you focus on what a passenger is truly saying rather than just the literal words?",k:"말 그대로의 단어보다 승객이 진정으로 말하고 있는 것에 어떻게 집중하나요?"},
+      {q:"Can you describe someone who always makes you feel connected with and understood? What do they do?",k:"항상 교감하고 이해받는 느낌을 주는 삶의 누군가를 설명해주세요. 그들은 무엇을 하나요?"},
+      {q:"How do you handle a situation where a passenger wants to open up to you for a long time during a busy service?",k:"바쁜 서비스 중 한 승객이 오랫동안 마음을 털어놓으려 할 때 어떻게 처리하나요?"},
+      {q:"What do you specifically focus on when trying to make a passenger feel genuinely supported?",k:"승객이 진정으로 지지받는다고 느끼게 만들려고 할 때 구체적으로 무엇에 집중하나요?"},
+      {q:"🎭 [Role-play] A passenger tells you they're flying home because a family member just passed away. How do you connect with them authentically without overstepping?",k:"한 승객이 가족을 잃어서 집으로 가는 비행이라고 말해요. 선을 넘지 않으면서 어떻게 진정성 있게 교감하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] A young passenger slowly opens up to you about being nervous about a big life change. How do you focus on them fully while still doing your job?",k:"한 젊은 승객이 큰 인생 변화에 대한 긴장감을 천천히 털어놓기 시작해요. 일을 하면서도 어떻게 온전히 그들에게 집중하겠어요?",roleplay:true},
+    ],
+    ss:["What or who do you focus on when everything feels overwhelming and you need to reset?","Have you ever opened up to someone unexpectedly? What made you trust them?","What's the deepest connection you've ever felt with a stranger, and what made it possible?"],
+  },
+  {
+    w:17,m:5,theme:"Cross-Cultural Sensitivity",sub:"Understanding Cultural Differences",
+    cheer:"다름을 두려워하지 않는 사람이 세상을 더 넓게 볼 수 있어요.",
+    expressions:[
+      {phrase:"Fit in",korean:"어울리다 / 잘 맞다 / 적응하다",context:"새로운 그룹·환경·문화에 자연스럽게 어울리거나 받아들여질 때 써요.",en:"She wasn't sure she would fit in at the new school, but she quickly found her people.",ko:"그녀는 새 학교에서 잘 어울릴지 확신하지 못했지만, 금세 자신의 사람들을 찾았습니다."},
+      {phrase:"Blend in",korean:"(환경에) 녹아들다 / 눈에 띄지 않게 적응하다",context:"주변과 자연스럽게 어우러지거나 눈에 띄지 않게 적응할 때 써요.",en:"When traveling abroad, he always tried to blend in with local customs out of respect.",ko:"해외여행할 때, 그는 존중의 의미로 항상 현지 관습에 자연스럽게 녹아들려고 했습니다."},
+      {phrase:"Adapt to",korean:"적응하다 / 맞추다",context:"새로운 환경·상황·요구에 맞게 자신을 바꾸거나 조정할 때 써요.",en:"Moving to a new country meant she had to adapt to an entirely different pace of life.",ko:"새 나라로 이사한다는 것은 완전히 다른 생활 페이스에 적응해야 한다는 것을 의미했습니다."},
+    ],
+    dq:[
+      {q:"Why is cross-cultural awareness especially important in a global airline environment?",k:"글로벌 항공사 환경에서 문화 간 인식이 특히 왜 중요한가요?"},
+      {q:"Have you ever been in a situation where you had to fit in with a culture very different from your own?",k:"자신과 매우 다른 문화에 어울려야 했던 상황이 있었나요?"},
+      {q:"Describe a time you tried to blend in with a local culture while traveling. What did you learn?",k:"여행 중 현지 문화에 녹아들려고 노력했던 경험을 말해주세요. 무엇을 배웠나요?"},
+      {q:"What has been the biggest cultural difference you've had to adapt to? How did you approach it?",k:"적응해야 했던 가장 큰 문화적 차이는 무엇인가요? 어떻게 접근했나요?"},
+      {q:"How do you balance fitting in with a team culture while still maintaining your own identity?",k:"자신의 정체성을 유지하면서 팀 문화에 어울리는 것을 어떻게 균형 잡나요?"},
+      {q:"In what ways does a cabin crew member need to adapt to serve passengers from different cultural backgrounds?",k:"승무원은 다양한 문화적 배경을 가진 승객을 서비스하기 위해 어떤 방면에서 적응해야 하나요?"},
+      {q:"Have you ever unintentionally been insensitive to a cultural norm? What did you do?",k:"의도치 않게 문화적 규범에 무감각했던 적이 있나요? 어떻게 했나요?"},
+      {q:"How do you adapt your communication style when interacting with passengers from different cultural backgrounds?",k:"다른 문화적 배경을 가진 승객과 상호작용할 때 소통 방식을 어떻게 적응시키나요?"},
+      {q:"🎭 [Role-play] A passenger from a culture you're less familiar with seems dissatisfied, but you can't figure out why. How do you adapt your approach to fit in with their expectations?",k:"덜 익숙한 문화권의 승객이 불만족스러워 보이는데 이유를 알 수 없어요. 그들의 기대에 맞게 어떻게 방식을 적응시키겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] You notice a group of passengers from the same culture is not blending in with the general cabin atmosphere and seems tense. What do you do?",k:"같은 문화권 승객 그룹이 기내 분위기에 녹아들지 못하고 긴장된 것 같아요. 어떻게 하겠어요?",roleplay:true},
+    ],
+    ss:["Describe a culture you've encountered that completely changed the way you see the world.","What's one value from your own culture you'd never want to blend in away from, no matter where you are?","What does it mean to adapt to your surroundings without losing who you are?"],
+  },
+  {
+    w:18,m:5,theme:"Cross-Cultural Sensitivity",sub:"Overcoming Language Barriers",
+    cheer:"언어의 벽도 진심 앞에서는 낮아지기 마련이에요. 당신의 진심을 믿어요.",
+    expressions:[
+      {phrase:"Break through",korean:"돌파하다 / 극복하다",context:"장벽·한계·어려운 상황을 뚫고 나아갈 때 써요.",en:"After months of practice, she finally broke through her fear of public speaking.",ko:"몇 달간의 연습 끝에, 그녀는 마침내 대중 앞에서 말하는 두려움을 극복했습니다."},
+      {phrase:"Bridge the gap",korean:"격차를 줄이다 / 연결하다",context:"문화·세대·언어 등 서로 다른 두 집단 사이의 차이를 줄이거나 연결할 때 써요.",en:"The bilingual counselor helped bridge the gap between the local community and immigrant families.",ko:"이중 언어 상담사가 지역 사회와 이민자 가족 사이의 격차를 줄이는 데 도움을 줬습니다."},
+      {phrase:"Relate to",korean:"공감하다 / 연결되다 / 이해하다",context:"누군가의 상황·감정·경험에 공감하거나 자신과 연결점을 찾을 때 써요.",en:"She found it easy to relate to her students because she had struggled with the same subject herself.",ko:"그녀는 자신도 같은 과목으로 어려움을 겪었기 때문에 학생들에게 쉽게 공감할 수 있었습니다."},
+    ],
+    dq:[
+      {q:"How do you communicate effectively with passengers who don't speak your language?",k:"당신의 언어를 못하는 승객과 어떻게 효과적으로 소통하나요?"},
+      {q:"Tell me about a time you broke through a communication barrier with someone. What did you try?",k:"누군가와 소통의 장벽을 돌파했던 경험을 말해주세요. 어떻게 시도했나요?"},
+      {q:"How can a cabin crew member bridge the gap between passengers who don't share a common language?",k:"공통 언어가 없는 승객들 사이의 격차를 승무원이 어떻게 줄일 수 있나요?"},
+      {q:"Is there a type of passenger you initially found hard to relate to? What helped you connect better?",k:"처음에 공감하기 어려웠던 유형의 승객이 있나요? 더 잘 연결되는 데 무엇이 도움이 됐나요?"},
+      {q:"What non-verbal strategies do you use to break through language barriers in a service setting?",k:"서비스 환경에서 언어 장벽을 극복하기 위해 어떤 비언어적 전략을 사용하나요?"},
+      {q:"How do you bridge the gap between what a passenger needs and what you are able to provide?",k:"승객이 필요한 것과 당신이 제공할 수 있는 것 사이의 격차를 어떻게 줄이나요?"},
+      {q:"What experiences have helped you relate to people from very different life circumstances than your own?",k:"자신과 매우 다른 삶의 상황을 가진 사람들에게 공감하는 데 도움이 된 경험들은 무엇인가요?"},
+      {q:"How would you handle a situation where a passenger can't relate to the standard service offering at all?",k:"승객이 표준 서비스 제공에 전혀 공감하지 못하는 상황을 어떻게 처리하겠어요?"},
+      {q:"🎭 [Role-play] A passenger speaks no English and appears to be in discomfort. How do you break through the language barrier to understand and help them?",k:"영어를 전혀 못하는 승객이 불편해 보여요. 어떻게 언어 장벽을 극복하고 이해하며 도울 수 있겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] Two passengers next to each other can't relate to one another and tension is growing. You need to bridge the gap. How do you start?",k:"나란히 앉은 두 승객이 서로 공감하지 못하고 긴장이 커지고 있어요. 격차를 줄여야 해요. 어떻게 시작하겠어요?",roleplay:true},
+    ],
+    ss:["What's the most creative way you've ever broken through a communication barrier?","Who in your life do you find it easiest to relate to, and why?","What does bridging the gap between different people look like in your everyday life?"],
+  },
+  {
+    w:19,m:5,theme:"Cross-Cultural Sensitivity",sub:"Embracing Diversity",
+    cheer:"다양성을 포용하는 사람이 어디서든 빛나요. 그게 바로 당신이에요.",
+    expressions:[
+      {phrase:"Embrace",korean:"받아들이다 / 기꺼이 수용하다",context:"새로운 것·변화·다름을 저항 없이 기꺼이 받아들이고 수용할 때 써요. 단순한 수용보다 더 적극적이고 따뜻한 뉘앙스예요.",en:"She fully embraced the chaos of moving abroad and found it exhilarating.",ko:"그녀는 해외 이주의 혼란을 완전히 받아들였고 그것을 짜릿하게 느꼈습니다."},
+      {phrase:"Come across",korean:"우연히 마주치다 / ~한 인상을 주다",context:"우연히 발견하거나 만날 때, 또는 상대에게 특정한 인상을 줄 때 써요.",en:"She came across an amazing café while wandering through a neighbourhood she'd never been to.",ko:"그녀는 한 번도 가보지 않은 동네를 거닐다가 우연히 멋진 카페를 발견했습니다."},
+      {phrase:"Bear in mind",korean:"명심하다 / 염두에 두다",context:"어떤 사실이나 상황을 잊지 않고 고려하거나 감안할 때 써요. 조언이나 경고를 줄 때도 자주 써요.",en:"Bear in mind that not everyone communicates in the same way — some people need more time to respond.",ko:"모든 사람이 같은 방식으로 소통하지는 않는다는 것을 염두에 두세요 — 어떤 사람들은 반응하는 데 더 많은 시간이 필요해요."},
+    ],
+    dq:[
+      {q:"What does diversity mean to you beyond race and nationality — in a cabin crew context?",k:"승무원 맥락에서 다양성은 인종과 국적을 넘어 당신에게 어떤 의미인가요?"},
+      {q:"Have you ever fully embraced a perspective or lifestyle very different from your own? What changed in you?",k:"자신과 매우 다른 관점이나 생활 방식을 완전히 받아들인 적이 있나요? 무엇이 달라졌나요?"},
+      {q:"Describe something remarkable you came across when traveling or exploring a new culture.",k:"여행하거나 새로운 문화를 탐험하면서 우연히 발견한 놀라운 것을 설명해주세요."},
+      {q:"What cultural assumptions do you bear in mind when serving passengers from different backgrounds?",k:"다양한 배경을 가진 승객을 서비스할 때 어떤 문화적 가정들을 염두에 두나요?"},
+      {q:"How do you ensure you come across as warm and welcoming to passengers regardless of their background?",k:"배경에 상관없이 모든 승객에게 따뜻하고 환영하는 인상을 주기 위해 어떻게 하나요?"},
+      {q:"Have you ever come across a bias within yourself you had to actively work to overcome?",k:"적극적으로 극복하기 위해 노력해야 했던 자신 안의 편견을 발견한 적이 있나요?"},
+      {q:"How do you embrace the parts of your own culture that might be misunderstood by others?",k:"다른 사람들에게 오해받을 수 있는 자신의 문화적 측면들을 어떻게 받아들이나요?"},
+      {q:"What specific cultural norms should a cabin crew member bear in mind when serving international passengers?",k:"국제 승객을 서비스할 때 승무원이 염두에 두어야 할 구체적인 문화적 규범은 무엇인가요?"},
+      {q:"🎭 [Role-play] You come across a situation where a passenger is making culturally insensitive comments about other passengers. How do you handle it?",k:"한 승객이 다른 승객들에 대해 문화적으로 무감각한 발언을 하는 상황을 마주쳤어요. 어떻게 처리하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] You notice a passenger seems uncomfortable because of a cultural misunderstanding with a crew member. How do you embrace the situation and resolve it?",k:"한 승객이 승무원과의 문화적 오해로 불편해 보여요. 어떻게 상황을 받아들이고 해결하겠어요?",roleplay:true},
+    ],
+    ss:["What's the most surprising thing you've come across in a culture different from your own?","How do you embrace parts of your identity that others might not immediately understand?","What's one thing everyone in a service role should bear in mind, no matter where their passengers come from?"],
+  },
+  {
+    w:20,m:5,theme:"Cross-Cultural Sensitivity",sub:"Resolving Cultural Conflicts",
+    cheer:"문화의 차이를 갈등이 아닌 대화로 푸는 사람, 그게 진짜 글로벌 인재예요.",
+    expressions:[
+      {phrase:"Navigate",korean:"헤쳐나가다 / 능숙하게 다루다",context:"복잡하거나 어려운 상황을 능숙하게 다루거나 헤쳐나갈 때 써요.",en:"She knew how to navigate difficult office politics without taking sides or burning bridges.",ko:"그녀는 어느 편도 들거나 관계를 망치지 않으면서 어려운 사내 정치를 능숙하게 헤쳐나가는 방법을 알았습니다."},
+      {phrase:"Accommodate",korean:"수용하다 / 편의를 제공하다",context:"다른 사람의 필요나 요청에 맞추거나 배려를 보여주기 위해 조정할 때 써요.",en:"The hotel staff went out of their way to accommodate guests with dietary restrictions.",ko:"호텔 직원들은 식이 제한이 있는 투숙객들의 편의를 위해 특별히 노력했습니다."},
+      {phrase:"Get through to",korean:"~에게 이해시키다 / 마음에 닿다",context:"말이 잘 전달되지 않는 사람에게 마침내 이해시키거나 감정적으로 마음에 닿을 때 써요.",en:"It was hard to get through to him at first, but she stayed patient and he finally listened.",ko:"처음에 그에게 이해시키기가 어려웠지만, 그녀는 인내심을 잃지 않았고 그는 마침내 귀를 기울였습니다."},
+    ],
+    dq:[
+      {q:"How do you navigate a culturally sensitive conflict while remaining neutral and respectful?",k:"중립적이고 존중하는 태도를 유지하면서 문화적으로 민감한 갈등을 어떻게 헤쳐나가나요?"},
+      {q:"What limits would you accommodate for a passenger whose cultural needs conflict with airline policy?",k:"문화적 필요가 항공사 정책과 충돌하는 승객을 위해 어느 수준까지 수용하겠어요?"},
+      {q:"Describe a time you struggled to get through to someone. What finally worked?",k:"누군가에게 이해시키는 데 어려움을 겪었던 경험을 말해주세요. 마침내 효과가 있었던 것은 무엇이었나요?"},
+      {q:"How do you navigate your own cultural bias when serving passengers from very different backgrounds?",k:"매우 다른 배경의 승객을 서비스할 때 자신의 문화적 편견을 어떻게 헤쳐나가나요?"},
+      {q:"How far should a cabin crew member go to accommodate cultural differences mid-flight?",k:"비행 중 문화적 차이를 수용하기 위해 승무원은 어느 정도까지 가야 할까요?"},
+      {q:"What's the most effective way you've found to get through to someone who is resistant or closed off?",k:"저항하거나 마음이 닫힌 사람에게 이해시키는 가장 효과적인 방법은 무엇인가요?"},
+      {q:"How would you navigate a situation where a passenger's cultural practices are making others uncomfortable?",k:"한 승객의 문화적 관행이 다른 승객들을 불편하게 만드는 상황을 어떻게 헤쳐나가겠어요?"},
+      {q:"Have you ever had to get through to someone from a very different background? What approach worked?",k:"자신과 매우 다른 배경의 누군가에게 이해시켜야 했던 적이 있나요? 어떤 접근 방식이 효과가 있었나요?"},
+      {q:"🎭 [Role-play] A passenger insists on a seating arrangement tied to their cultural beliefs that conflicts with safety requirements. How do you navigate this?",k:"한 승객이 안전 요건과 충돌하지만 문화적 신념과 관련된 좌석 배치를 고집해요. 어떻게 헤쳐나가겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] You need to get through to a passenger who refuses to follow instructions due to a cultural misunderstanding. How do you accommodate their perspective while holding the line?",k:"문화적 오해로 지시를 따르길 거부하는 승객에게 이해시켜야 해요. 그들의 관점을 수용하면서 어떻게 선을 지키겠어요?",roleplay:true},
+    ],
+    ss:["What's the most complex situation you've had to navigate — and what did it teach you about yourself?","Is there something about your own culture that you had to teach yourself to accommodate in others?","When trying to get through to someone, what matters more: the right words or the right timing?"],
+  },
+  {
+    w:21,m:6,theme:"Professionalism & Work Ethic",sub:"What It Means to Be Professional",
+    cheer:"프로페셔널리즘은 완벽함이 아니라 태도예요. 오늘의 태도가 내일을 만들어요.",
+    expressions:[
+      {phrase:"Own up to",korean:"인정하다 / 솔직하게 고백하다",context:"자신의 실수·잘못·책임을 회피하지 않고 솔직하게 인정할 때 써요. 용기 있고 성숙한 행동을 나타내요.",en:"When the project failed, he owned up to his part in it rather than blaming the team.",ko:"프로젝트가 실패했을 때, 그는 팀을 비난하는 대신 그것에서 자신의 역할을 솔직하게 인정했습니다."},
+      {phrase:"Follow up on",korean:"후속 조치를 취하다 / 추적하다",context:"이전에 논의된 사항이나 진행 중인 일에 대해 추가로 확인하거나 후속 행동을 취할 때 써요.",en:"She always follows up on every email within 24 hours — it's become her professional signature.",ko:"그녀는 항상 24시간 안에 모든 이메일에 후속 조치를 취해요 — 그게 그녀의 직업적 트레이드마크가 됐습니다."},
+      {phrase:"Set goals",korean:"목표를 세우다 / 목표를 정하다",context:"명확한 목표를 수립하고 방향을 정할 때 써요. 개인·직업·팀 모든 맥락에서 자주 쓰여요.",en:"At the start of each year, he sets specific goals for both his personal and professional growth.",ko:"매년 시작 시, 그는 개인 및 직업적 성장을 위한 구체적인 목표를 세웁니다."},
+    ],
+    dq:[
+      {q:"How would you define professionalism in your own words — what does it really mean to you?",k:"프로페셔널리즘을 자신만의 말로 어떻게 정의하겠어요 — 실제로 당신에게 어떤 의미인가요?"},
+      {q:"Tell me about a time you owned up to a mistake at work. What happened, and what did you learn?",k:"직장에서 실수를 솔직하게 인정했던 경험을 말해주세요. 무슨 일이 있었고 무엇을 배웠나요?"},
+      {q:"How do you follow up on tasks and conversations to make sure nothing falls through the cracks?",k:"아무것도 놓치지 않기 위해 업무와 대화를 어떻게 후속 조치를 취하나요?"},
+      {q:"Walk me through how you set goals for yourself — short-term and long-term.",k:"단기 및 장기 목표를 어떻게 세우는지 설명해주세요."},
+      {q:"How do you maintain professional behavior when working with someone you personally find difficult?",k:"개인적으로 어렵다고 느끼는 사람과 일할 때 어떻게 전문적인 행동을 유지하나요?"},
+      {q:"Is there a goal you've set for yourself specifically to prepare for a career as a cabin crew member?",k:"승무원 커리어를 준비하기 위해 구체적으로 세운 목표가 있나요?"},
+      {q:"How do you own up to knowledge gaps without undermining your credibility in a professional setting?",k:"직업적인 환경에서 신뢰를 해치지 않으면서 지식의 부족함을 어떻게 솔직하게 인정하나요?"},
+      {q:"What does it look like to follow up with a passenger after handling a complaint — in concrete terms?",k:"불만을 처리한 후 승객에게 후속 조치를 취하는 것이 구체적으로 어떤 모습인가요?"},
+      {q:"🎭 [Role-play] You realize mid-service that you've given a passenger incorrect information. How do you own up to it professionally without losing their trust?",k:"서비스 중 승객에게 잘못된 정보를 줬다는 걸 알게 됐어요. 신뢰를 잃지 않으면서 어떻게 전문적으로 인정하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] A passenger asks you to follow up on a request you forgot about. How do you handle it honestly and professionally?",k:"한 승객이 당신이 잊어버린 요청에 대한 후속 조치를 요청해요. 어떻게 솔직하고 전문적으로 처리하겠어요?",roleplay:true},
+    ],
+    ss:["What's the most important professional standard you've ever had to own up to not meeting?","How do you follow up on your own development — what does personal accountability look like for you?","What's one goal you've set that you're genuinely proud of following through on?"],
+  },
+  {
+    w:22,m:6,theme:"Professionalism & Work Ethic",sub:"Managing Time & Energy",
+    cheer:"시간을 잘 쓰는 사람이 에너지도 잘 써요. 지금 그 균형을 배우고 있어요.",
+    expressions:[
+      {phrase:"Prioritize",korean:"우선순위를 두다 / 중요한 것을 먼저 하다",context:"여러 선택지 중 더 중요한 것을 먼저 처리하거나 집중할 때 써요.",en:"She had to learn to prioritize self-care alongside her demanding work schedule.",ko:"그녀는 빡빡한 업무 일정과 함께 자기 관리를 우선시하는 것을 배워야 했습니다."},
+      {phrase:"Keep track of",korean:"기록하다 / 놓치지 않고 파악하다",context:"변화하는 정보·진행 상황·업무 등을 지속적으로 기록하거나 파악할 때 써요.",en:"He uses a simple notebook to keep track of everything he needs to do each day.",ko:"그는 매일 해야 할 모든 것을 파악하기 위해 간단한 노트북을 사용합니다."},
+      {phrase:"Manage",korean:"관리하다 / 해내다 / 가까스로 하다",context:"상황·감정·자원을 통제하거나 조절할 때, 또는 어려운 상황에서도 '어떻게든 해내다'라는 의미로도 써요.",en:"Despite everything going wrong, she somehow managed to keep the team focused and on track.",ko:"모든 것이 잘못되어가는 상황에서도, 그녀는 어떻게든 팀을 집중시키고 정상 궤도에 올려놓았습니다."},
+    ],
+    dq:[
+      {q:"How do you decide what to prioritize when everything feels equally urgent on a busy flight?",k:"바쁜 비행에서 모든 것이 똑같이 긴급하게 느껴질 때 무엇을 우선시할지 어떻게 결정하나요?"},
+      {q:"What tools or systems do you use to keep track of multiple tasks and responsibilities at once?",k:"동시에 여러 작업과 책임을 놓치지 않기 위해 어떤 도구나 시스템을 사용하나요?"},
+      {q:"Describe a time when you managed a really difficult situation under pressure. What kept you going?",k:"압박 속에서 정말 어려운 상황을 해낸 경험을 말해주세요. 무엇이 당신을 계속 나아가게 했나요?"},
+      {q:"How do you prioritize your own energy and well-being when your schedule is extremely demanding?",k:"일정이 매우 빡빡할 때 자신의 에너지와 건강을 어떻게 우선시하나요?"},
+      {q:"How do you keep track of special passenger requests during a long and complex flight service?",k:"길고 복잡한 비행 서비스 중 특별 승객 요청을 어떻게 놓치지 않고 파악하나요?"},
+      {q:"Have you ever felt like you could not manage your own emotions at work? How did you handle it?",k:"직장에서 자신의 감정을 관리할 수 없다고 느꼈던 적이 있나요? 어떻게 처리했나요?"},
+      {q:"What does it mean to manage passenger expectations effectively — can you give an example?",k:"승객의 기대를 효과적으로 관리하는 것은 어떤 의미인가요 — 예를 들어 설명해주세요."},
+      {q:"How do you prioritize your team's needs versus individual passenger requests during peak service?",k:"서비스 피크 타임에 팀의 필요와 개별 승객의 요청을 어떻게 우선순위를 정하나요?"},
+      {q:"🎭 [Role-play] Multiple passengers call for assistance at the same time. How do you prioritize and manage each situation?",k:"여러 승객이 동시에 도움을 요청하고 있어요. 어떻게 우선순위를 정하고 각 상황을 관리하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] You're keeping track of a passenger with special needs, but a new urgent issue has just come up. How do you manage both?",k:"특별 지원이 필요한 승객을 파악하고 있는데 새로운 긴급 상황이 발생했어요. 어떻게 두 가지 모두 관리하겠어요?",roleplay:true},
+    ],
+    ss:["What do you consistently prioritize in your own life that others might find surprising?","How do you keep track of your personal growth — what does that process look like?","What's the hardest thing you've ever had to manage on your own, and what made you capable of it?"],
+  },
+  {
+    w:23,m:6,theme:"Professionalism & Work Ethic",sub:"Committing to Self-Growth",
+    cheer:"성장은 불편함을 견디는 데서 시작돼요. 오늘 그 불편함을 선택한 당신이 대단해요.",
+    expressions:[
+      {phrase:"Invest in",korean:"투자하다 / 시간·노력을 들이다",context:"돈뿐 아니라 시간·에너지·관심을 어딘가에 쏟을 때 써요. 자기 계발 맥락에서 특히 자주 쓰여요.",en:"She decided to invest in a public speaking course to boost her confidence at work.",ko:"그녀는 직장에서 자신감을 높이기 위해 대중 연설 강좌에 투자하기로 결심했습니다."},
+      {phrase:"Grow from",korean:"~에서 성장하다 / ~을 통해 배우다",context:"실패·실수·어려운 경험에서 교훈을 얻어 더 성장할 때 써요.",en:"Instead of feeling ashamed, she chose to grow from the feedback she received.",ko:"부끄러워하는 대신, 그녀는 받은 피드백에서 성장하기로 선택했습니다."},
+      {phrase:"Push oneself",korean:"자신을 밀어붙이다 / 한계에 도전하다",context:"안전지대를 벗어나 자신을 더 높은 기준이나 한계로 밀어붙일 때 써요.",en:"He pushed himself to train for a marathon even though he'd never been a runner.",ko:"그는 달리기를 해본 적이 없었는데도 마라톤을 위해 훈련에 자신을 밀어붙였습니다."},
+    ],
+    dq:[
+      {q:"What does personal growth mean to you, and how do you actively pursue it?",k:"개인적 성장은 당신에게 어떤 의미이고, 어떻게 적극적으로 추구하나요?"},
+      {q:"What is the most meaningful thing you've invested in for your own development — and was it worth it?",k:"자신의 발전을 위해 가장 의미 있게 투자한 것은 무엇인가요 — 그것이 가치 있었나요?"},
+      {q:"Tell me about an experience you grew from that you didn't expect to learn so much from.",k:"그렇게 많은 것을 배울 것이라고 예상하지 못했던 경험에서 성장했던 이야기를 해주세요."},
+      {q:"When have you pushed yourself beyond your comfort zone for professional growth? What happened?",k:"직업적 성장을 위해 안전지대를 넘어 자신을 밀어붙인 경험이 있나요?"},
+      {q:"How do you invest in growing your cultural intelligence and awareness of the world?",k:"문화적 지능과 세계에 대한 인식을 키우는 데 어떻게 투자하나요?"},
+      {q:"What's something you grew from that was initially very painful or humbling?",k:"처음에는 매우 고통스럽거나 겸손하게 만들었지만 그것에서 성장했던 것은 무엇인가요?"},
+      {q:"How do you push yourself to improve in areas where you receive the most criticism?",k:"가장 많은 비판을 받는 영역에서 발전하기 위해 어떻게 자신을 밀어붙이나요?"},
+      {q:"What personal development habit has had the biggest positive impact on your life so far?",k:"지금까지 삶에 가장 긍정적인 영향을 미친 자기 개발 습관은 무엇인가요?"},
+      {q:"🎭 [Role-play] A supervisor tells you there's a specific area of your performance you need to grow from. How do you respond in the moment — and what do you do after?",k:"상관이 성과에서 성장해야 할 구체적인 영역이 있다고 말해요. 그 순간 어떻게 반응하고 이후에 어떻게 하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] You notice yourself avoiding a challenging aspect of the job. How do you push yourself to invest in improving in that area?",k:"직업의 어려운 측면을 피하고 있다는 것을 알아챘어요. 그 영역 개선에 투자하기 위해 어떻게 자신을 밀어붙이겠어요?",roleplay:true},
+    ],
+    ss:["What's the biggest thing you've ever invested in that had nothing to do with money?","Name something painful you grew from that you'd never want to undo.","What's one way you've recently pushed yourself — and what did it cost you?"],
+  },
+  {
+    w:24,m:6,theme:"Professionalism & Work Ethic",sub:"Ethics & Attitude at Work",
+    cheer:"윤리는 아무도 보지 않을 때 진짜 실력이 드러나는 영역이에요. 믿어요, 당신을.",
+    expressions:[
+      {phrase:"Uphold",korean:"지키다 / 유지하다 / 옹호하다",context:"기준·가치·원칙을 지속적으로 유지하거나 지킬 때 써요. 어려운 상황에서도 흔들리지 않는 뉘앙스예요.",en:"Despite pressure from others, she upheld her principles and refused to take shortcuts.",ko:"다른 사람들의 압박에도 불구하고, 그녀는 원칙을 지키며 지름길을 택하기를 거부했습니다."},
+      {phrase:"Strive for",korean:"~을 위해 노력하다 / ~을 추구하다",context:"높은 목표나 이상을 향해 지속적으로 노력하거나 추구할 때 써요.",en:"She constantly strives for excellence, even in tasks that nobody seems to notice.",ko:"그녀는 아무도 눈치채지 못하는 업무에서도 탁월함을 위해 끊임없이 노력합니다."},
+      {phrase:"Stay true to",korean:"~에 충실하다 / ~을 지키다",context:"자신의 가치관·신념·정체성을 압박이나 유혹 속에서도 지킬 때 써요.",en:"No matter how successful he became, he always stayed true to his humble roots.",ko:"아무리 성공해도, 그는 항상 자신의 겸손한 뿌리에 충실했습니다."},
+    ],
+    dq:[
+      {q:"What ethical principles do you uphold in a professional setting, even when they are inconvenient?",k:"불편하더라도 직업적인 환경에서 어떤 윤리적 원칙을 지키나요?"},
+      {q:"What are you currently striving for in your preparation for becoming a cabin crew member?",k:"승무원이 되기 위한 준비에서 현재 무엇을 위해 노력하고 있나요?"},
+      {q:"How do you stay true to your values when the team or environment around you has different standards?",k:"주변 팀이나 환경이 다른 기준을 갖고 있을 때 어떻게 자신의 가치관에 충실하나요?"},
+      {q:"Describe a time when you upheld a standard that was unpopular or went against the group.",k:"인기 없거나 그룹에 반하는 기준을 지켰던 경험을 말해주세요."},
+      {q:"What professional attitude are you most proud of? How did you develop it?",k:"가장 자랑스러운 직업적 태도는 무엇인가요? 어떻게 발전시켰나요?"},
+      {q:"How do you strive for consistency in your attitude on both good days and bad days at work?",k:"직장에서 좋은 날과 나쁜 날 모두 태도의 일관성을 위해 어떻게 노력하나요?"},
+      {q:"Is there something you've had to stay true to in your career path, even when others doubted you?",k:"다른 사람들이 의심했을 때도 커리어 경로에서 충실해야 했던 것이 있나요?"},
+      {q:"How do you respond when a colleague asks you to cut corners or compromise on a standard you uphold?",k:"동료가 지름길을 택하거나 당신이 지키는 기준을 타협하도록 요청할 때 어떻게 반응하나요?"},
+      {q:"🎭 [Role-play] You witness a colleague behaving unethically toward a passenger. You must uphold your airline's values. What do you do?",k:"동료가 승객에게 비윤리적으로 행동하는 것을 목격했어요. 항공사의 가치를 지켜야 해요. 어떻게 하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] A passenger offers you a personal gift after you helped them. You need to stay true to your professional code. How do you handle it graciously?",k:"당신을 도와준 대가로 한 승객이 개인적인 선물을 제공해요. 전문적인 규정에 충실해야 해요. 어떻게 우아하게 처리하겠어요?",roleplay:true},
+    ],
+    ss:["What's a standard you uphold in your private life that you'd never compromise — even under pressure?","What are you genuinely striving for right now — beyond passing an interview?","Describe a moment where staying true to yourself cost you something. Was it worth it?"],
+  },
+  {
+    w:25,m:7,theme:"Resilience & Adaptability",sub:"Embracing Change",
+    cheer:"변화는 두려운 것이 아니라 성장의 신호예요. 당신은 이미 변화를 받아들이고 있어요.",
+    expressions:[
+      {phrase:"Adjust to",korean:"적응하다 / 맞추다",context:"새로운 상황·환경·기대에 맞게 자신의 행동이나 방식을 조정할 때 써요.",en:"Moving to a different city was hard at first, but she adjusted to the new lifestyle faster than expected.",ko:"다른 도시로 이사하는 것은 처음에 힘들었지만, 그녀는 예상보다 빠르게 새로운 생활 방식에 적응했습니다."},
+      {phrase:"Roll with",korean:"(변화를) 유연하게 받아들이다",context:"계획대로 되지 않더라도 유연하게 상황에 맞춰가며 받아들일 때 써요.",en:"The event didn't go as planned, but he just rolled with it and made the best of the situation.",ko:"행사는 계획대로 되지 않았지만, 그는 유연하게 받아들이며 상황에서 최선을 이끌어냈습니다."},
+      {phrase:"Carry on",korean:"계속하다 / 굴하지 않고 나아가다",context:"어려움이나 방해가 있어도 하던 일을 계속하거나 굴하지 않고 나아갈 때 써요.",en:"After the setback, she took a deep breath and carried on with the rest of her day.",ko:"좌절감 후, 그녀는 심호흡을 하고 남은 하루를 계속 이어나갔습니다."},
+    ],
+    dq:[
+      {q:"How do you personally respond to change — is it something you embrace naturally, or is it a struggle?",k:"개인적으로 변화에 어떻게 반응하나요 — 자연스럽게 받아들이나요, 아니면 힘드나요?"},
+      {q:"Tell me about a time you had to adjust to an unexpected change at work or in your personal life.",k:"직장이나 개인 생활에서 예상치 못한 변화에 적응해야 했던 경험을 말해주세요."},
+      {q:"Describe a situation where you had to roll with something that went very differently from planned.",k:"계획과 매우 다르게 진행된 상황에서 유연하게 받아들여야 했던 경험을 말해주세요."},
+      {q:"What helps you carry on professionally when you're personally going through a difficult period?",k:"개인적으로 힘든 시기를 보내면서도 전문적으로 계속 나아가는 데 무엇이 도움이 되나요?"},
+      {q:"How do you think the aviation industry specifically requires people to adjust to constant change?",k:"항공 산업이 특히 사람들에게 끊임없는 변화에 적응하도록 어떻게 요구한다고 생각하나요?"},
+      {q:"How do you stay effective and positive when the plan changes mid-flight or mid-service?",k:"비행이나 서비스 중 계획이 바뀔 때 어떻게 효과적이고 긍정적으로 유지하나요?"},
+      {q:"What is the biggest change you've had to roll with in recent years — and what did it teach you?",k:"최근 몇 년 동안 유연하게 받아들여야 했던 가장 큰 변화는 무엇이고 무엇을 가르쳐줬나요?"},
+      {q:"Is there a situation where you struggled to carry on after a failure? What turned things around?",k:"실패 후 계속 나아가는 것이 힘들었던 상황이 있나요? 무엇이 상황을 바꿔놓았나요?"},
+      {q:"🎭 [Role-play] Your entire service plan is disrupted due to a technical issue. How do you adjust to the new situation and keep passengers calm?",k:"기술적 문제로 전체 서비스 계획이 중단됐어요. 새로운 상황에 어떻게 적응하고 승객들을 진정시키겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] A last-minute gate change throws the boarding process into confusion. How do you roll with the change and carry on effectively?",k:"마지막 순간의 게이트 변경이 탑승 과정을 혼란에 빠뜨렸어요. 어떻게 유연하게 변화를 받아들이고 효과적으로 계속 나아가겠어요?",roleplay:true},
+    ],
+    ss:["What's the most significant change you've ever had to adjust to — and who did it make you?","Describe a time you had to roll with something completely unexpected. Looking back, how do you feel about it?","Is there something in your life right now you need to carry on through? What's keeping you going?"],
+  },
+  {
+    w:26,m:7,theme:"Resilience & Adaptability",sub:"Building Resilience",
+    cheer:"회복력은 넘어지지 않는 게 아니라 다시 일어서는 거예요. 당신은 분명 다시 일어설 거예요.",
+    expressions:[
+      {phrase:"Cope with",korean:"(어려움에) 대처하다 / 견뎌내다",context:"스트레스·어려움·슬픔 등 힘든 상황에 대처하거나 견뎌낼 때 써요.",en:"She developed a meditation practice to cope with the anxiety that came with her new role.",ko:"그녀는 새 역할과 함께 오는 불안에 대처하기 위해 명상 습관을 길렀습니다."},
+      {phrase:"Hold up",korean:"버티다 / 견디다 / 지탱하다",context:"어렵거나 힘든 상황에서도 무너지지 않고 버티거나 잘 견뎌낼 때 써요.",en:"She held up remarkably well under the pressure of the final exams despite barely sleeping.",ko:"그녀는 거의 잠을 못 잤음에도 불구하고 기말고사 압박 속에서 놀랍도록 잘 버텼습니다."},
+      {phrase:"Push through",korean:"밀고 나가다 / 이겨내며 나아가다",context:"어려움이나 고통이 있어도 포기하지 않고 계속 밀고 나아갈 때 써요.",en:"Even when his motivation was at its lowest, he pushed through and finished the project.",ko:"의욕이 가장 낮았을 때도, 그는 밀고 나가 프로젝트를 마무리했습니다."},
+    ],
+    dq:[
+      {q:"How do you define resilience — and do you consider yourself a resilient person? Why?",k:"회복력을 어떻게 정의하나요 — 당신은 스스로 회복력이 강한 사람이라고 생각하나요? 왜 그런가요?"},
+      {q:"What healthy habits or practices help you cope with stress in a demanding work environment?",k:"요구가 많은 업무 환경에서 스트레스에 대처하는 데 어떤 건강한 습관이나 방법이 도움이 되나요?"},
+      {q:"Describe a time you held up under intense pressure. What inner resource did you draw on?",k:"극심한 압박 속에서도 버텼던 경험을 말해주세요. 어떤 내면의 자원을 끌어냈나요?"},
+      {q:"Tell me about a time you pushed through something that felt impossible at the time.",k:"그 당시에는 불가능하게 느껴졌던 것을 밀고 나간 경험을 말해주세요."},
+      {q:"How does a cabin crew member cope with the emotional weight of regularly seeing people in distress?",k:"승무원은 고통받는 사람들을 정기적으로 보는 것의 감정적 무게를 어떻게 대처하나요?"},
+      {q:"What does it mean to hold up professionally even when your personal life is difficult?",k:"개인 생활이 어려울 때도 전문적으로 버텨내는 것은 어떤 의미인가요?"},
+      {q:"Have you ever had to push through exhaustion to complete an important task? How did you do it?",k:"중요한 임무를 완수하기 위해 극도의 피로를 이겨내며 나아가야 했던 적이 있나요?"},
+      {q:"What does resilience look like in a cabin crew team — how do strong teams cope with setbacks together?",k:"승무원 팀의 회복력은 어떤 모습인가요 — 강한 팀들은 어떻게 함께 좌절을 이겨내나요?"},
+      {q:"🎭 [Role-play] You've just handled three back-to-back difficult situations and you're feeling worn down. How do you cope with your own emotions before the next passenger interaction?",k:"연속으로 세 가지 어려운 상황을 처리했고 지쳐있어요. 다음 승객 상호작용 전에 자신의 감정을 어떻게 대처하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] The flight is severely delayed and passengers are increasingly frustrated. How do you hold up under the mounting pressure and push through the rest of the service?",k:"비행이 심하게 지연되고 승객들이 점점 더 불만스러워하고 있어요. 커지는 압박 속에서 어떻게 버티고 나머지 서비스를 이겨내며 나아가겠어요?",roleplay:true},
+    ],
+    ss:["What's your most reliable strategy for coping with stress — and how long did it take to develop it?","Describe a moment when you weren't sure you'd hold up. What surprised you about yourself?","What's the most meaningful thing you've ever pushed through, and who did it make you?"],
+  },
+  {
+    w:27,m:7,theme:"Resilience & Adaptability",sub:"Navigating Uncertainty",
+    cheer:"불확실할 때 중심을 잡는 사람이 가장 멀리 가요. 지금 그 중심을 연습하고 있어요.",
+    expressions:[
+      {phrase:"Stay grounded",korean:"중심을 잡다 / 흔들리지 않다",context:"혼란스럽거나 불확실한 상황에서 감정적으로·정신적으로 안정을 유지할 때 써요.",en:"Even during the most chaotic moments of the project, he stayed grounded and kept the team focused.",ko:"프로젝트의 가장 혼란스러운 순간에도, 그는 중심을 잡고 팀의 집중력을 유지했습니다."},
+      {phrase:"Let go of",korean:"내려놓다 / 포기하다 / 놓아주다",context:"집착·감정·과거·기대 등을 의식적으로 내려놓거나 놓아줄 때 써요.",en:"She finally let go of the need to control everything and found herself much happier.",ko:"그녀는 마침내 모든 것을 통제하려는 욕구를 내려놓았고 훨씬 더 행복해졌습니다."},
+      {phrase:"Start over",korean:"다시 시작하다 / 새 출발하다",context:"실패·실망·변화 후에 처음부터 다시 시작하거나 새 출발을 할 때 써요.",en:"After the business failed, she took a month off to think, and then started over with a better plan.",ko:"사업이 실패한 후, 그녀는 한 달 동안 쉬며 생각하다가, 더 나은 계획으로 다시 시작했습니다."},
+    ],
+    dq:[
+      {q:"How do you navigate situations where you have no clear answer or protocol to follow?",k:"명확한 답이나 따라야 할 절차가 없는 상황을 어떻게 헤쳐나가나요?"},
+      {q:"What practices help you stay grounded when everything around you feels uncertain?",k:"주변의 모든 것이 불확실하게 느껴질 때 중심을 잡는 데 어떤 방법들이 도움이 되나요?"},
+      {q:"Is there something from your past you've had to let go of in order to move forward?",k:"앞으로 나아가기 위해 내려놓아야 했던 과거의 무언가가 있나요?"},
+      {q:"Describe a time you had to start over from scratch. What did you take with you into the new beginning?",k:"처음부터 다시 시작해야 했던 경험을 말해주세요. 새 출발에 무엇을 가지고 갔나요?"},
+      {q:"How do you stay grounded in your values when facing a situation that has no perfect solution?",k:"완벽한 해결책이 없는 상황에서 직면할 때 가치관의 중심을 어떻게 잡나요?"},
+      {q:"What expectations or assumptions have you had to let go of since starting your cabin crew preparation?",k:"승무원 준비를 시작한 이후 내려놓아야 했던 기대나 가정들은 무엇인가요?"},
+      {q:"How do you help passengers start over emotionally after something goes wrong on their journey?",k:"여정에서 무언가 잘못된 후 승객들이 감정적으로 새로 시작하도록 어떻게 도울 수 있나요?"},
+      {q:"How do you navigate team uncertainty — when morale is low and no one knows what comes next?",k:"사기가 낮고 다음이 어떻게 될지 아무도 모를 때 팀의 불확실성을 어떻게 헤쳐나가나요?"},
+      {q:"🎭 [Role-play] The flight is diverted due to weather and passengers are confused and anxious. How do you stay grounded and help them let go of their frustration?",k:"날씨로 인해 비행이 우회됐고 승객들이 혼란스럽고 불안해하고 있어요. 어떻게 중심을 잡고 그들이 좌절감을 내려놓도록 도울 수 있겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] A passenger's travel plan has completely fallen through upon arrival. They need to start over with new arrangements. How do you help them navigate this?",k:"한 승객의 여행 계획이 도착 후 완전히 엉켜버렸어요. 새로운 준비로 다시 시작해야 해요. 어떻게 이것을 헤쳐나가도록 도울 수 있겠어요?",roleplay:true},
+    ],
+    ss:["What's the one thing that always helps you stay grounded when life feels out of control?","What's the hardest thing you've ever had to let go of — and what did it open up for you?","Is there an area of your life where you feel like you're ready to start over? What's holding you back?"],
+  },
+  {
+    w:28,m:7,theme:"Resilience & Adaptability",sub:"Overcoming Burnout",
+    cheer:"번아웃은 열정의 증거예요. 지금 잠시 쉬어도 괜찮아요. 그래야 더 멀리 갈 수 있어요.",
+    expressions:[
+      {phrase:"Slow down",korean:"속도를 늦추다 / 여유를 갖다",context:"너무 바쁘거나 빠르게 달려오던 것을 의식적으로 늦추거나 여유를 갖기 위해 속도를 조절할 때 써요.",en:"Her doctor told her she needed to slow down before her body forced her to.",ko:"의사는 몸이 강제로 멈추게 하기 전에 속도를 늦춰야 한다고 그녀에게 말했습니다."},
+      {phrase:"Recharge",korean:"재충전하다 / 에너지를 회복하다",context:"에너지·동기·열정 등을 쉬거나 즐거운 활동을 통해 다시 채울 때 써요.",en:"She takes a solo trip every six months to recharge and come back with fresh energy.",ko:"그녀는 재충전하고 새로운 에너지로 돌아오기 위해 6개월마다 혼자 여행을 떠납니다."},
+      {phrase:"Start fresh",korean:"새롭게 시작하다 / 리셋하다",context:"과거의 실수나 피로를 뒤로 하고 새로운 마음으로 다시 시작할 때 써요.",en:"Each Monday morning, she starts fresh — a clean to-do list and a clear headspace.",ko:"매주 월요일 아침, 그녀는 새롭게 시작해요 — 깨끗한 할 일 목록과 맑은 정신으로."},
+    ],
+    dq:[
+      {q:"Have you ever experienced burnout? What were the signs, and how did you overcome it?",k:"번아웃을 경험한 적이 있나요? 어떤 신호들이 있었고 어떻게 극복했나요?"},
+      {q:"How do you recognize when you need to slow down before you burn out completely?",k:"완전히 번아웃되기 전에 속도를 늦춰야 할 때를 어떻게 인식하나요?"},
+      {q:"What is your favorite way to recharge after a particularly demanding stretch of work?",k:"특히 힘든 업무 기간 후 재충전하는 가장 좋아하는 방법은 무엇인가요?"},
+      {q:"How do you start fresh mentally when you carry emotional weight from one flight to the next?",k:"한 비행에서 다음 비행으로 감정적인 무게를 갖고 올 때 어떻게 새롭게 시작하나요?"},
+      {q:"What boundaries have you set — or plan to set — to protect your energy in this career?",k:"이 커리어에서 에너지를 보호하기 위해 어떤 경계를 설정했거나 설정할 계획인가요?"},
+      {q:"How does the aviation industry make it particularly challenging to slow down and rest?",k:"항공 산업이 속도를 늦추고 휴식을 취하는 것을 특히 어렵게 만드는 이유는 무엇인가요?"},
+      {q:"How do you recharge when the job itself doesn't allow long breaks?",k:"직업 자체가 긴 휴식을 허용하지 않을 때 어떻게 재충전하나요?"},
+      {q:"What does starting fresh look like for you before each flight — mentally and physically?",k:"각 비행 전에 당신에게 새롭게 시작하는 것은 정신적으로 그리고 신체적으로 어떤 모습인가요?"},
+      {q:"🎭 [Role-play] A colleague is clearly showing signs of burnout mid-trip. How do you help them slow down and start fresh without making them feel judged?",k:"동료가 여행 중 번아웃의 명확한 신호를 보이고 있어요. 판단받는 느낌 없이 어떻게 속도를 늦추고 새롭게 시작하도록 도울 수 있겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] You are absolutely exhausted, but there are still two hours left on the flight. How do you recharge just enough to keep serving passengers well?",k:"완전히 지쳐있지만 아직 비행이 두 시간 남았어요. 어떻게 승객들을 잘 서비스하기에 충분할 만큼 재충전하겠어요?",roleplay:true},
+    ],
+    ss:["What's the clearest sign that you personally need to slow down?","What's the most restorative way you've found to recharge — and when did you discover it?","What would starting fresh look like for you right now, in this season of your life?"],
+  },
+  {
+    w:29,m:8,theme:"Cabin Crew Vision & Identity",sub:"My Cabin Crew Philosophy",
+    cheer:"당신만의 철학이 당신을 특별하게 만들어요. 그 철학을 이제 말로 표현해봐요.",
+    expressions:[
+      {phrase:"Stand for",korean:"~을 지지하다 / ~을 상징하다",context:"어떤 가치·원칙·신념을 대표하거나 그것을 위해 입장을 취할 때 써요.",en:"The brand has always stood for quality over speed — and their customers know it.",ko:"그 브랜드는 항상 속도보다 품질을 지지해왔고 — 그들의 고객들은 그것을 알고 있습니다."},
+      {phrase:"Believe in",korean:"믿다 / 신뢰하다 / 확신하다",context:"누군가·무언가의 가치나 가능성을 진심으로 믿거나 신뢰할 때 써요.",en:"She believed in her team even when the results weren't there yet.",ko:"그녀는 아직 결과가 나오지 않았을 때도 팀을 믿었습니다."},
+      {phrase:"Define oneself as",korean:"자신을 ~로 정의하다",context:"자신의 정체성·역할·가치관을 어떻게 바라보는지 표현할 때 써요.",en:"He doesn't define himself by his job title — he defines himself by how he treats people.",ko:"그는 자신을 직함으로 정의하지 않아요 — 그는 사람들을 어떻게 대하는지로 자신을 정의합니다."},
+    ],
+    dq:[
+      {q:"What is your personal philosophy for working in a service role — what do you believe at the core?",k:"서비스 역할에서 일하는 당신의 개인 철학은 무엇인가요 — 핵심적으로 무엇을 믿나요?"},
+      {q:"What does your dream airline stand for — and why does it align with who you are?",k:"당신이 꿈꾸는 항공사는 무엇을 지지하나요 — 그리고 그것이 당신과 어떻게 일치하나요?"},
+      {q:"What do you genuinely believe in that makes you different from other cabin crew candidates?",k:"당신을 다른 승무원 후보자들과 다르게 만드는 진심으로 믿는 것은 무엇인가요?"},
+      {q:"How do you define yourself as a person — beyond your résumé and experience?",k:"이력서와 경험을 넘어서, 당신은 스스로를 어떤 사람으로 정의하나요?"},
+      {q:"What values do you stand for that you hope passengers feel when they interact with you?",k:"당신과 상호작용할 때 승객들이 느끼기를 바라는 어떤 가치를 지지하나요?"},
+      {q:"Do you believe every passenger deserves the same quality of service? How do you ensure that in practice?",k:"모든 승객이 같은 질의 서비스를 받을 자격이 있다고 믿나요? 실제로 어떻게 보장하나요?"},
+      {q:"How do you define yourself as a professional when things go wrong and the pressure is on?",k:"일이 잘못되고 압박을 받을 때 전문가로서 자신을 어떻게 정의하나요?"},
+      {q:"What do you believe in so strongly that it would never change, regardless of which airline you work for?",k:"어떤 항공사에서 일하든 절대 바뀌지 않을 것이라고 강하게 믿는 것은 무엇인가요?"},
+      {q:"🎭 [Role-play] A passenger asks you why you chose this career. How do you answer in a way that reflects your philosophy authentically?",k:"한 승객이 왜 이 커리어를 선택했는지 물어봐요. 진정성 있게 자신의 철학을 반영하는 방식으로 어떻게 대답하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] A colleague defines themselves very differently from you in terms of work ethic. How do you work effectively together while both standing for your own values?",k:"동료가 직업 윤리 면에서 당신과 매우 다르게 자신을 정의해요. 각자의 가치를 지지하면서 어떻게 효과적으로 함께 일하겠어요?",roleplay:true},
+    ],
+    ss:["What do you stand for that you hope defines the kind of crew member you'll be?","What do you believe in most deeply when it comes to human connection?","How would you define yourself as a person to someone who's never met you — in just two sentences?"],
+  },
+  {
+    w:30,m:8,theme:"Cabin Crew Vision & Identity",sub:"You as a Personal Brand",
+    cheer:"브랜드는 이미지가 아니라 일관성이에요. 당신의 일관된 모습이 기억될 거예요.",
+    expressions:[
+      {phrase:"Be known for",korean:"~로 알려지다 / ~로 유명하다",context:"사람이나 조직이 특정 자질·성취·특성으로 널리 알려지거나 기억될 때 써요.",en:"She wants to be known for her reliability — when she commits, she always delivers.",ko:"그녀는 신뢰성으로 알려지고 싶어요 — 약속하면 항상 실행에 옮겨요."},
+      {phrase:"Leave a mark",korean:"흔적을 남기다 / 인상을 남기다",context:"누군가·어딘가에 긍정적이거나 오래 남는 인상이나 영향을 남길 때 써요.",en:"Even in her short time at the company, she left a mark that people still talk about.",ko:"회사에서의 짧은 시간에도, 그녀는 사람들이 여전히 이야기하는 흔적을 남겼습니다."},
+      {phrase:"Build on",korean:"~을 토대로 발전시키다 / 쌓아나가다",context:"이미 있는 것(강점·경험·성과)을 기반으로 더 발전시키거나 확장할 때 써요.",en:"She decided to build on her language skills and added a third language to her résumé.",ko:"그녀는 언어 능력을 토대로 발전시키기로 결심하고 이력서에 세 번째 언어를 추가했습니다."},
+    ],
+    dq:[
+      {q:"What do you want to be known for as a cabin crew member — what is your personal brand?",k:"승무원으로서 무엇으로 알려지고 싶나요 — 당신의 개인 브랜드는 무엇인가요?"},
+      {q:"What mark do you hope to leave on each passenger you interact with?",k:"상호작용하는 각 승객에게 어떤 흔적을 남기고 싶나요?"},
+      {q:"What existing strengths and experiences do you plan to build on as you enter this career?",k:"이 커리어에 진입하면서 쌓아나갈 계획인 기존의 강점과 경험은 무엇인가요?"},
+      {q:"How do you make sure the impression you leave on people matches the impression you intend to give?",k:"사람들에게 남기는 인상이 의도한 인상과 일치하도록 어떻게 확인하나요?"},
+      {q:"What are you most naturally known for among your friends, and is it the same at work?",k:"친구들 사이에서 가장 자연스럽게 알려진 것은 무엇이고, 직장에서도 같나요?"},
+      {q:"How can you build on your current qualities and experience to become exceptional in this role?",k:"현재의 자질과 경험을 토대로 어떻게 이 역할에서 뛰어나게 될 수 있나요?"},
+      {q:"Is the way you are remembered by others consistent with who you believe you are? How do you know?",k:"다른 사람들에게 기억되는 방식이 당신이 믿는 자신과 일치하나요? 어떻게 알 수 있나요?"},
+      {q:"What mark have people who inspired you left on you — and how do you want to carry that forward?",k:"당신에게 영감을 준 사람들이 당신에게 남긴 흔적은 무엇인가요 — 그것을 어떻게 이어가고 싶나요?"},
+      {q:"🎭 [Role-play] A passenger says to you, 'You're the best flight attendant I've ever had.' What do you say — and what does it reveal about what you want to be known for?",k:"한 승객이 '지금까지 만난 최고의 승무원이에요'라고 말해요. 무슨 말을 하겠어요 — 그리고 그것이 알려지고 싶은 것에 대해 무엇을 드러내나요?",roleplay:true},
+      {q:"🎭 [Role-play] You are nearing the end of your probation and your manager asks what mark you feel you've made so far. How do you answer confidently?",k:"수습 기간이 끝나가고 매니저가 지금까지 어떤 흔적을 남겼다고 생각하는지 물어봐요. 어떻게 자신감 있게 대답하겠어요?",roleplay:true},
+    ],
+    ss:["What do you want to be known for by the time you retire from this career?","What's the most lasting mark someone has ever left on you — and do they know it?","What can you build on right now that will become your greatest professional strength?"],
+  },
+  {
+    w:31,m:8,theme:"Cabin Crew Vision & Identity",sub:"Who You'll Be in 5 Years",
+    cheer:"5년 후의 당신을 상상하는 것, 그게 오늘을 더 의미있게 만들어요.",
+    expressions:[
+      {phrase:"Look ahead",korean:"앞을 내다보다 / 미래를 생각하다",context:"현재에 머물지 않고 미래를 계획하거나 목표를 향해 시선을 돌릴 때 써요.",en:"Instead of dwelling on past mistakes, she chose to look ahead and plan her next steps.",ko:"과거의 실수에 머물지 않고, 그녀는 앞을 내다보며 다음 단계를 계획하기로 했습니다."},
+      {phrase:"Aim for",korean:"~을 목표로 하다 / ~을 겨냥하다",context:"특정 목표나 성취를 향해 방향을 잡고 노력할 때 써요.",en:"She's aiming for a promotion within the next two years and has already started upskilling.",ko:"그녀는 향후 2년 내 승진을 목표로 하고 있으며 이미 역량 향상을 시작했습니다."},
+      {phrase:"Work toward",korean:"~을 향해 노력하다 / ~을 위해 꾸준히 나아가다",context:"장기적인 목표나 이상을 향해 꾸준히 노력하거나 나아갈 때 써요.",en:"He's been working toward opening his own restaurant for the past three years.",ko:"그는 지난 3년 동안 자신의 레스토랑을 여는 것을 향해 꾸준히 노력해왔습니다."},
+    ],
+    dq:[
+      {q:"Where do you see yourself in five years within the aviation industry?",k:"항공 산업에서 5년 후 자신을 어떻게 보나요?"},
+      {q:"What kind of crew member are you aiming to become — at your very best?",k:"최고의 모습에서 어떤 승무원이 되는 것을 목표로 하나요?"},
+      {q:"What long-term goals are you currently working toward in your personal development?",k:"현재 개인 발전에서 향해 노력하고 있는 장기적인 목표는 무엇인가요?"},
+      {q:"What does looking ahead mean to you when so much of cabin crew life is unpredictable?",k:"승무원 생활이 많은 부분에서 예측 불가능한데 앞을 내다본다는 것은 당신에게 어떤 의미인가요?"},
+      {q:"What milestones are you aiming for in your first year as a cabin crew member?",k:"승무원으로서 첫 번째 해에 목표로 하는 이정표는 무엇인가요?"},
+      {q:"Is there a leadership or senior role you're working toward in the long run?",k:"장기적으로 향해 노력하고 있는 리더십이나 선임 역할이 있나요?"},
+      {q:"How do you balance looking ahead to future goals while staying fully present in your current role?",k:"미래 목표를 내다보면서 현재 역할에 완전히 집중하는 것을 어떻게 균형 잡나요?"},
+      {q:"What does 'success' look like for you five years from now — professionally and personally?",k:"5년 후의 '성공'은 직업적으로 그리고 개인적으로 어떤 모습인가요?"},
+      {q:"🎭 [Role-play] An interviewer asks: 'Where do you see yourself in five years?' How do you answer in a way that feels both ambitious and grounded?",k:"면접관이 물어봐요: '5년 후 자신을 어떻게 보나요?' 야심차면서도 현실적인 방식으로 어떻게 대답하겠어요?",roleplay:true},
+      {q:"🎭 [Role-play] A junior colleague asks for your advice on what to aim for in their first year. How do you guide them?",k:"주니어 동료가 첫 번째 해에 무엇을 목표로 해야 하는지 조언을 구해요. 어떻게 안내하겠어요?",roleplay:true},
+    ],
+    ss:["What are you currently working toward that, five years from now, you'll be glad you started?","Is there something you've been aiming for so long you've forgotten to check if it still excites you?","When you look ahead at your life, what do you hope people say about the kind of person you became?"],
+  },
+  {
+    w:32,m:8,theme:"Cabin Crew Vision & Identity",sub:"Your Final Commitment",
+    cheer:"시작했다는 것만으로도 이미 대단해요. 끝까지 함께 해줘서 고마워요. 당신의 합격을 진심으로 응원해요! ✈️🌟",
+    expressions:[
+      {phrase:"Give it all",korean:"전부 쏟아붓다 / 최선을 다하다",context:"가진 모든 에너지·노력·열정을 아낌없이 쏟아부을 때 써요. 경기·시험·프로젝트 어디서든 써요.",en:"In her final interview, she gave it all — and walked out knowing she'd left nothing on the table.",ko:"마지막 면접에서, 그녀는 전부 쏟아부었고 — 아무것도 남기지 않았다는 것을 알며 나왔습니다."},
+      {phrase:"Stay the course",korean:"끝까지 유지하다 / 흔들리지 않다",context:"어려움이 있어도 계획·원칙·방향을 바꾸지 않고 끝까지 유지할 때 써요.",en:"Despite pressure to pivot, the founder stayed the course and the company eventually thrived.",ko:"방향 전환에 대한 압박에도 불구하고, 창립자는 끝까지 유지했고 회사는 결국 번창했습니다."},
+      {phrase:"Take a leap",korean:"과감하게 도전하다 / 도약하다",context:"불확실하거나 두렵더라도 용기 있게 큰 결정을 내리거나 도전을 향해 나아갈 때 써요.",en:"She had been overthinking it for months, so she finally took a leap and applied for the job.",ko:"그녀는 몇 달 동안 너무 많이 생각하고 있었기 때문에 결국 과감하게 도전해 그 직업에 지원했습니다."},
+    ],
+    dq:[
+      {q:"You've reached Week 32. Looking back, what is the most important thing you've learned about yourself?",k:"32주차에 도달했어요. 돌아보며, 이 공부를 통해 자신에 대해 배운 가장 중요한 것은 무엇인가요?"},
+      {q:"What does it mean to give it all in a cabin crew role — not just during the interview, but every single day?",k:"면접 때만이 아니라 매일 승무원 역할에서 전부 쏟아붓는다는 것은 당신에게 어떤 의미인가요?"},
+      {q:"How do you plan to stay the course when the job becomes difficult or routine sets in?",k:"일이 어려워지거나 일상이 자리잡을 때 어떻게 끝까지 유지할 계획인가요?"},
+      {q:"What made you take the leap toward a cabin crew career? What was the moment everything clicked?",k:"승무원 커리어를 향해 과감하게 도전하게 만든 것은 무엇인가요? 모든 것이 맞아 떨어진 순간은 언제였나요?"},
+      {q:"What commitment are you making to yourself today — not to the airline, but to yourself?",k:"오늘 항공사가 아닌 자기 자신에게 어떤 다짐을 하고 있나요?"},
+      {q:"What does staying the course look like on the days you feel least motivated or most doubtful?",k:"의욕이 가장 없거나 가장 회의적인 날에 끝까지 유지하는 것은 어떤 모습인가요?"},
+      {q:"What would you tell your Week 1 self, now that you've come this far?",k:"여기까지 왔으니, 1주차의 자신에게 무엇을 말해주겠어요?"},
+      {q:"What's the one thing you want interviewers to remember about you after you've given it all in the room?",k:"면접관들이 당신이 면접장에서 전부 쏟아부은 후 당신에 대해 기억하기를 바라는 한 가지는 무엇인가요?"},
+      {q:"🎭 [Role-play] This is your final interview. You've given it all. The interviewer asks: 'Why should we choose you?' Give the answer you've been preparing for 32 weeks.",k:"이것이 마지막 면접이에요. 전부 쏟아부었어요. 면접관이 물어봐요: '왜 당신을 선택해야 하나요?' 32주 동안 준비해온 답변을 해주세요.",roleplay:true},
+      {q:"🎭 [Role-play] You've taken the leap and received your first offer. A friend asks if you're scared. How do you stay the course in your answer?",k:"과감하게 도전해서 첫 번째 제안을 받았어요. 친구가 무섭지 않냐고 물어봐요. 답변에서 어떻게 끝까지 유지하겠어요?",roleplay:true},
+    ],
+    ss:["What does it truly mean to give it all — and have you ever done it completely?","What's the most meaningful course you've stayed the course on — and what did it cost you?","What leap are you most proud of having taken in your life so far?"],
+  },
+];
+
+
+// ══════════════════════════════════════════════
+// 🎨  STYLES
+// ══════════════════════════════════════════════
+const styles = `
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream:   #F7F0E6;
+    --parchment: #EDE0CC;
+    --sand:    #D4B896;
+    --caramel: #B8895A;
+    --brown:   #7A5230;
+    --espresso:#4A2E14;
+    --dark:    #2C1A0E;
+    --accent:  #C4956A;
+    --gold:    #C9A96E;
+  }
+
+  body { background: var(--cream); font-family: 'DM Sans', sans-serif; }
+
+  /* ── PIN SCREEN ── */
+  .pin-screen {
+    min-height: 100vh;
+    background: var(--espresso);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .pin-bg-text {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(80px, 18vw, 200px);
+    font-weight: 300;
+    color: rgba(255,255,255,0.03);
+    letter-spacing: 0.3em;
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .pin-logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(11px, 2vw, 13px);
+    font-weight: 400;
+    letter-spacing: 0.55em;
+    color: var(--sand);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .pin-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(36px, 8vw, 64px);
+    font-weight: 300;
+    color: var(--cream);
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+  .pin-subtitle {
+    font-size: 12px;
+    color: var(--sand);
+    letter-spacing: 0.2em;
+    margin-bottom: 52px;
+    text-transform: uppercase;
+  }
+  .pin-box {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 36px 44px;
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+    backdrop-filter: blur(10px);
+    width: min(340px, 90vw);
+  }
+  .pin-label {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--sand);
+    text-transform: uppercase;
+  }
+  .pin-dots {
+    display: flex; gap: 14px;
+  }
+  .pin-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--caramel);
+    transition: background 0.2s;
+  }
+  .pin-dot.filled { background: var(--caramel); }
+  .pin-keypad {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 10px; width: 100%;
+  }
+  .pin-key {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    color: var(--cream);
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 400;
+    padding: 14px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    text-align: center;
+  }
+  .pin-key:hover { background: rgba(255,255,255,0.12); }
+  .pin-key:active { transform: scale(0.95); }
+  .pin-key.del { font-size: 16px; font-family: 'DM Sans', sans-serif; color: var(--sand); }
+  .pin-error {
+    font-size: 12px; color: #E07070;
+    letter-spacing: 0.1em; min-height: 18px;
+  }
+
+  /* ── WATERMARK ── */
+  .watermark-overlay {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    overflow: hidden;
+  }
+  .watermark-track {
+    position: absolute; inset: -50%;
+    display: flex; flex-wrap: wrap;
+    gap: 60px 40px;
+    transform: rotate(-30deg);
+    opacity: 0.055;
+  }
+  .watermark-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--espresso);
+    white-space: nowrap;
+    user-select: none;
+    line-height: 2.2;
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .app-wrap {
+    min-height: 100vh;
+    background: var(--cream);
+    position: relative;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--espresso);
+    padding: 14px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-brand {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 13px; font-weight: 400;
+    letter-spacing: 0.45em;
+    color: var(--sand);
+    text-transform: uppercase;
+  }
+  .view-counter {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .view-label {
+    font-size: 10px; letter-spacing: 0.2em;
+    color: var(--sand); text-transform: uppercase;
+  }
+  .view-dots {
+    display: flex; gap: 5px;
+  }
+  .view-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--caramel);
+    opacity: 0.3;
+    transition: opacity 0.3s;
+  }
+  .view-dot.used { opacity: 1; }
+  .view-dot.remaining { opacity: 0.5; border: 1px solid var(--caramel); background: transparent; }
+
+  /* ── WEEK HERO ── */
+  .week-hero {
+    background: var(--espresso);
+    padding: 32px 28px 40px;
+    position: relative; overflow: hidden;
+  }
+  .week-hero::before {
+    content: '';
+    position: absolute; top: -40px; right: -40px;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(196,149,106,0.15) 0%, transparent 70%);
+  }
+  .week-tag {
+    display: inline-block;
+    font-size: 10px; letter-spacing: 0.35em;
+    color: var(--gold); text-transform: uppercase;
+    border: 1px solid rgba(201,169,110,0.3);
+    border-radius: 20px; padding: 4px 12px;
+    margin-bottom: 14px;
+  }
+  .week-month-label {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 12px; letter-spacing: 0.3em;
+    color: var(--caramel); text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .week-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(26px, 5vw, 40px);
+    font-weight: 300; color: var(--cream);
+    line-height: 1.2; margin-bottom: 16px;
+  }
+  .cheer-msg {
+    font-size: 13px; color: var(--sand);
+    line-height: 1.7; font-style: italic;
+    border-left: 2px solid var(--caramel);
+    padding-left: 14px;
+    max-width: 520px;
+  }
+
+  /* ── SECTION ── */
+  .section { padding: 32px 24px; max-width: 760px; margin: 0 auto; }
+  .section-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 11px; letter-spacing: 0.4em;
+    color: var(--caramel); text-transform: uppercase;
+    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-title::after {
+    content: ''; flex: 1;
+    height: 1px; background: var(--parchment);
+  }
+
+  /* ── EXPRESSION CARDS ── */
+  .expr-card {
+    background: white;
+    border-radius: 14px;
+    padding: 22px 24px;
+    margin-bottom: 14px;
+    border: 1px solid var(--parchment);
+    box-shadow: 0 2px 12px rgba(74,46,20,0.06);
+  }
+  .expr-phrase {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px; font-weight: 600;
+    color: var(--espresso);
+    margin-bottom: 2px;
+  }
+  .expr-korean {
+    font-size: 13px; color: var(--caramel);
+    margin-bottom: 10px; letter-spacing: 0.02em;
+  }
+  .expr-context {
+    font-size: 12px; color: #888;
+    background: var(--cream);
+    border-radius: 8px; padding: 8px 12px;
+    margin-bottom: 12px; line-height: 1.6;
+  }
+  .expr-example {
+    border-left: 3px solid var(--caramel);
+    padding-left: 14px;
+  }
+  .expr-en {
+    font-size: 13.5px; color: var(--dark);
+    line-height: 1.6; margin-bottom: 4px;
+  }
+  .expr-ko {
+    font-size: 12px; color: #999;
+    line-height: 1.6;
+  }
+
+  /* ── DQ LIST ── */
+  .dq-list { display: flex; flex-direction: column; gap: 10px; }
+  .dq-item {
+    background: white;
+    border-radius: 12px;
+    padding: 16px 18px;
+    border: 1px solid var(--parchment);
+    box-shadow: 0 1px 6px rgba(74,46,20,0.04);
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .dq-item.roleplay {
+    background: linear-gradient(135deg, #FFF8F2, white);
+    border-color: rgba(196,149,106,0.25);
+  }
+  .dq-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px; color: var(--sand);
+    min-width: 24px; line-height: 1;
+    margin-top: 2px;
+  }
+  .dq-item.roleplay .dq-num { color: var(--caramel); }
+  .dq-content { flex: 1; }
+  .dq-q {
+    font-size: 13.5px; color: var(--dark);
+    line-height: 1.65; margin-bottom: 5px;
+  }
+  .dq-k {
+    font-size: 12px; color: #aaa;
+    line-height: 1.6;
+  }
+  .roleplay-badge {
+    display: inline-block;
+    font-size: 10px; letter-spacing: 0.15em;
+    color: var(--caramel);
+    background: rgba(196,149,106,0.12);
+    border-radius: 4px; padding: 2px 7px;
+    margin-bottom: 6px; text-transform: uppercase;
+  }
+
+  /* ── SENTENCE SHOOTING ── */
+  .ss-list { display: flex; flex-direction: column; gap: 10px; }
+  .ss-item {
+    background: var(--espresso);
+    border-radius: 12px; padding: 18px 22px;
+    display: flex; gap: 14px; align-items: flex-start;
+  }
+  .ss-bullet {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px; color: var(--gold);
+    line-height: 1; margin-top: 2px; min-width: 16px;
+  }
+  .ss-q {
+    font-size: 14px; color: var(--cream);
+    line-height: 1.65; flex: 1;
+  }
+
+  /* ── LOCKED SCREEN ── */
+  .locked-screen {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 60vh; gap: 16px; padding: 40px;
+    text-align: center;
+  }
+  .locked-icon { font-size: 48px; }
+  .locked-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px; color: var(--espresso);
+  }
+  .locked-msg { font-size: 14px; color: #999; line-height: 1.7; max-width: 300px; }
+
+  /* ── FUTURE WEEK ── */
+  .future-screen {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 60vh; gap: 16px; padding: 40px;
+    text-align: center;
+  }
+  .future-icon { font-size: 48px; }
+  .future-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px; color: var(--espresso);
+  }
+  .future-msg { font-size: 14px; color: #999; line-height: 1.7; max-width: 300px; }
+
+  /* ── NAV DOTS ── */
+  .week-nav {
+    padding: 20px 24px 0;
+    display: flex; gap: 6px; flex-wrap: wrap;
+    max-width: 760px; margin: 0 auto;
+  }
+  .week-nav-dot {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; cursor: pointer;
+    border: 1px solid var(--parchment);
+    color: var(--brown); background: white;
+    transition: all 0.2s;
+    font-family: 'Cormorant Garamond', serif;
+  }
+  .week-nav-dot.active {
+    background: var(--espresso); color: var(--cream);
+    border-color: var(--espresso);
+  }
+  .week-nav-dot.locked { opacity: 0.35; cursor: default; }
+  .week-nav-dot:hover:not(.locked):not(.active) {
+    background: var(--parchment);
+  }
+
+  /* ── DIVIDER ── */
+  .divider {
+    height: 1px; background: var(--parchment);
+    margin: 4px 24px;
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    text-align: center; padding: 32px 24px;
+    font-size: 11px; color: var(--sand);
+    letter-spacing: 0.2em; text-transform: uppercase;
+    border-top: 1px solid var(--parchment);
+    margin-top: 20px;
+  }
+
+  /* ── PREVIEW PIN MODAL ── */
+  .preview-backdrop {
+    position: fixed; inset: 0; z-index: 10000;
+    background: rgba(28,16,8,0.72);
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(8px);
+    animation: fadeIn 0.18s ease;
+  }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  .preview-modal {
+    background: var(--espresso);
+    border: 1px solid rgba(201,169,110,0.22);
+    border-radius: 20px; padding: 32px 36px;
+    width: min(300px, 88vw);
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+  }
+  .preview-modal-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px; color: var(--cream); letter-spacing: 0.06em;
+  }
+  .preview-modal-sub {
+    font-size: 10px; letter-spacing: 0.28em;
+    color: var(--sand); text-transform: uppercase; margin-top: -10px;
+  }
+  .preview-modal-dots { display: flex; gap: 12px; }
+  .preview-modal-dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    border: 2px solid var(--gold); transition: background 0.15s;
+  }
+  .preview-modal-dot.filled { background: var(--gold); }
+  .preview-modal-keypad {
+    display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; width: 100%;
+  }
+  .preview-modal-key {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 9px; color: var(--cream);
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px; padding: 12px; cursor: pointer;
+    text-align: center; transition: background 0.15s, transform 0.1s;
+  }
+  .preview-modal-key:hover { background: rgba(255,255,255,0.13); }
+  .preview-modal-key:active { transform: scale(0.94); }
+  .preview-modal-key.del { font-size:14px; font-family:'DM Sans',sans-serif; color:var(--sand); }
+  .preview-modal-error { font-size:11px; color:#E07070; letter-spacing:0.08em; min-height:16px; }
+  .preview-modal-cancel {
+    font-size:11px; color:var(--sand); letter-spacing:0.2em;
+    text-transform:uppercase; cursor:pointer; opacity:0.6;
+    transition: opacity 0.2s; padding: 2px 8px;
+  }
+  .preview-modal-cancel:hover { opacity:1; }
+  .preview-shake { animation: shake 0.4s ease; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 60%{transform:translateX(8px)} }
+`;
+
+// ══════════════════════════════════════════════
+// 🔑  PIN SCREEN
+// ══════════════════════════════════════════════
+function PinScreen({ onSuccess }) {
+  const [input, setInput] = useState("");
+  const [error, setError] = useState("");
+  const [shake, setShake] = useState(false);
+
+  const press = (k) => {
+    if (k === "del") { setInput(p => p.slice(0, -1)); setError(""); return; }
+    if (input.length >= 4) return;
+    const next = input + k;
+    setInput(next);
+    if (next.length === 4) {
+      if (next === CONFIG.PIN) {
+        setTimeout(onSuccess, 200);
+      } else {
+        setError("잘못된 PIN이에요. 다시 시도해주세요.");
+        setShake(true);
+        setTimeout(() => { setInput(""); setShake(false); }, 600);
+      }
+    }
+  };
+
+  return (
+    <div className="pin-screen">
+      <div className="pin-bg-text">BEGINS</div>
+      <div className="pin-logo">Begins Study</div>
+      <div className="pin-title">Welcome Back</div>
+      <div className="pin-subtitle">Members Only Access</div>
+      <div className={`pin-box${shake ? " pin-shake" : ""}`}>
+        <div className="pin-label">Enter PIN</div>
+        <div className="pin-dots">
+          {[0,1,2,3].map(i => (
+            <div key={i} className={`pin-dot${i < input.length ? " filled" : ""}`} />
+          ))}
+        </div>
+        <div className="pin-keypad">
+          {["1","2","3","4","5","6","7","8","9","","0","del"].map((k, i) =>
+            k === "" ? <div key={i} /> :
+            <button key={i} className={`pin-key${k === "del" ? " del" : ""}`} onClick={() => press(k)}>
+              {k === "del" ? "⌫" : k}
+            </button>
+          )}
+        </div>
+        <div className="pin-error">{error}</div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════
+// 💧  WATERMARK
+// ══════════════════════════════════════════════
+function Watermark() {
+  const text = "BEGINS STUDY [EXCLUSIVELY CREATED BY AMY] UNAUTHORIZED SHARING PROHIBITED";
+  const tiles = Array(120).fill(text);
+  return (
+    <div className="watermark-overlay">
+      <div className="watermark-track">
+        {tiles.map((t, i) => (
+          <span key={i} className="watermark-text">{t}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════
+// 📖  WEEK CONTENT
+// ══════════════════════════════════════════════
+function WeekContent({ weekData }) {
+  return (
+    <div>
+      {/* Hero */}
+      <div className="week-hero">
+        <div className="week-tag">Week {weekData.w} · Month {weekData.m}</div>
+        <div className="week-month-label">{weekData.theme}</div>
+        <div className="week-title">{weekData.sub}</div>
+        <div className="cheer-msg">{weekData.cheer}</div>
+      </div>
+
+      {/* Expressions */}
+      <div className="section">
+        <div className="section-title">Useful Phrases</div>
+        {weekData.expressions.map((e, i) => (
+          <div key={i} className="expr-card">
+            <div className="expr-phrase">{e.phrase}</div>
+            <div className="expr-korean">{e.korean}</div>
+            <div className="expr-context">💡 {e.context}</div>
+            <div className="expr-example">
+              <div className="expr-en">"{e.en}"</div>
+              <div className="expr-ko">{e.ko}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="divider" />
+
+      {/* Daily Questions */}
+      <div className="section">
+        <div className="section-title">Daily Questions</div>
+        <div className="dq-list">
+          {weekData.dq.map((item, i) => (
+            <div key={i} className={`dq-item${item.roleplay ? " roleplay" : ""}`}>
+              <div className="dq-num">{i + 1}</div>
+              <div className="dq-content">
+                {item.roleplay && <div className="roleplay-badge">Role-play</div>}
+                <div className="dq-q">{item.roleplay ? item.q.replace("🎭 [Role-play] ", "") : item.q}</div>
+                <div className="dq-k">{item.k}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="divider" />
+
+      {/* Sentence Shooting */}
+      <div className="section">
+        <div className="section-title">Sentence Shooting</div>
+        <div className="ss-list">
+          {weekData.ss.map((q, i) => (
+            <div key={i} className="ss-item">
+              <div className="ss-bullet">✦</div>
+              <div className="ss-q">{q}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════
+// 🔐  PREVIEW PIN MODAL (Amy 전용)
+// ══════════════════════════════════════════════
+function PreviewPinModal({ onSuccess, onClose, input, onPress, error, shake }) {
+  return (
+    <div className="preview-backdrop" onClick={onClose}>
+      <div
+        className={`preview-modal${shake ? " preview-shake" : ""}`}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="preview-modal-title">미리보기 모드</div>
+        <div className="preview-modal-sub">Admin Access Only</div>
+        <div className="preview-modal-dots">
+          {[0,1,2,3].map(i => (
+            <div key={i} className={`preview-modal-dot${i < input.length ? " filled" : ""}`} />
+          ))}
+        </div>
+        <div className="preview-modal-keypad">
+          {["1","2","3","4","5","6","7","8","9","","0","del"].map((k,i) =>
+            k === "" ? <div key={i}/> :
+            <button key={i} className={`preview-modal-key${k==="del"?" del":""}`} onClick={() => onPress(k)}>
+              {k === "del" ? "⌫" : k}
+            </button>
+          )}
+        </div>
+        <div className="preview-modal-error">{error}</div>
+        <div className="preview-modal-cancel" onClick={onClose}>취소</div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════
+// 🏠  MAIN APP
+// ══════════════════════════════════════════════
+export default function App() {
+  const [unlocked, setUnlocked] = useState(false);
+  const [selectedWeek, setSelectedWeek] = useState(null);
+  const [viewsUsed, setViewsUsed] = useState(0);
+  const [previewMode, setPreviewMode] = useState(false);
+  const [lastTap, setLastTap] = useState(0);
+  const [showPreviewPin, setShowPreviewPin] = useState(false);
+  const [previewPinInput, setPreviewPinInput] = useState("");
+  const [previewPinError, setPreviewPinError] = useState("");
+  const [previewShake, setPreviewShake] = useState(false);
+  const currentWeek = getCurrentWeek();
+
+  const PREVIEW_PIN = "0909";
+
+  // ✦ 로고 두 번 탭 → 비밀 PIN 모달 오픈 (Amy 전용 🤫)
+  const handleLogoTap = () => {
+    const now = Date.now();
+    if (now - lastTap < 400) {
+      if (previewMode) {
+        setPreviewMode(false); // 이미 활성화 상태면 바로 끄기
+      } else {
+        setShowPreviewPin(true);
+        setPreviewPinInput("");
+        setPreviewPinError("");
+      }
+      setLastTap(0);
+    } else {
+      setLastTap(now);
+    }
+  };
+
+  const handlePreviewPinPress = (k) => {
+    if (k === "del") { setPreviewPinInput(p => p.slice(0, -1)); setPreviewPinError(""); return; }
+    if (previewPinInput.length >= 4) return;
+    const next = previewPinInput + k;
+    setPreviewPinInput(next);
+    if (next.length === 4) {
+      if (next === PREVIEW_PIN) {
+        setPreviewMode(true);
+        setShowPreviewPin(false);
+        setPreviewPinInput("");
+      } else {
+        setPreviewPinError("잘못된 코드예요.");
+        setPreviewShake(true);
+        setTimeout(() => { setPreviewPinInput(""); setPreviewShake(false); }, 600);
+      }
+    }
+  };
+
+  // Load view count from storage
+  useEffect(() => {
+    const key = getWeekKey();
+    window.storage.get(key).then(res => {
+      if (res) setViewsUsed(parseInt(res.value) || 0);
+    }).catch(() => setViewsUsed(0));
+  }, []);
+
+  // On PIN success — auto-select current week
+  const handleUnlock = async () => {
+    const key = getWeekKey();
+    let used = viewsUsed;
+    try {
+      const res = await window.storage.get(key);
+      used = res ? parseInt(res.value) || 0 : 0;
+    } catch { used = 0; }
+
+    if (used < CONFIG.MAX_VIEWS) {
+      const newUsed = used + 1;
+      setViewsUsed(newUsed);
+      try { await window.storage.set(key, String(newUsed)); } catch {}
+    } else {
+      setViewsUsed(used);
+    }
+
+    setSelectedWeek(currentWeek);
+    setUnlocked(true);
+    // 최초 1회 안내 모달
+    try {
+      const seen = await window.storage.get('welcome_seen');
+      if (!seen) {
+        setShowWelcomeModal(true);
+        await window.storage.set('welcome_seen', '1');
+      }
+    } catch { setShowWelcomeModal(true); }
+  };
+
+  const [showLockedModal, setShowLockedModal] = useState(false);
+  const [showViewsModal, setShowViewsModal] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
+  const handleSelectWeek = (w) => {
+    if (previewMode) { setSelectedWeek(w); return; }
+    if (w !== currentWeek) { setShowLockedModal(true); return; }
+    if (viewsUsed >= CONFIG.MAX_VIEWS) { setShowViewsModal(true); return; }
+    setSelectedWeek(w);
+  };
+
+  const weekData = selectedWeek
+    ? WEEKS.find(d => d.w === selectedWeek)
+    : null;
+
+  const remaining = Math.max(CONFIG.MAX_VIEWS - viewsUsed, 0);
+
+  if (!unlocked) return (
+    <>
+      <style>{styles}</style>
+      <style>{`.pin-shake { animation: shake 0.4s ease; } @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 60%{transform:translateX(8px)} }`}</style>
+      <PinScreen onSuccess={handleUnlock} />
+    </>
+  );
+
+  return (
+    <>
+      <style>{styles}</style>
+      <Watermark />
+      {/* Amy 전용 미리보기 PIN 모달 */}
+      {showPreviewPin && (
+        <PreviewPinModal
+          input={previewPinInput}
+          onPress={handlePreviewPinPress}
+          error={previewPinError}
+          shake={previewShake}
+          onClose={() => { setShowPreviewPin(false); setPreviewPinInput(""); setPreviewPinError(""); }}
+        />
+      )}
+
+      {/* ✦ 최초 1회 이용 안내 모달 */}
+      {showWelcomeModal && (
+        <div className="preview-backdrop" onClick={() => setShowWelcomeModal(false)}>
+          <div className="preview-modal" onClick={e => e.stopPropagation()} style={{gap:0, padding:"32px 28px", maxWidth:320, width:"90vw"}}>
+            {/* 타이틀 */}
+            <div style={{fontFamily:"'Cormorant Garamond',serif", fontSize:20, color:"var(--cream)", letterSpacing:"0.06em", marginBottom:6, textAlign:"center"}}>
+              ✦ Begins Study
+            </div>
+            <div style={{fontSize:10, letterSpacing:"0.25em", color:"var(--sand)", textTransform:"uppercase", textAlign:"center", marginBottom:20}}>
+              이용 안내
+            </div>
+
+            {/* 안내 항목 */}
+            <div style={{display:"flex", flexDirection:"column", gap:12, marginBottom:24}}>
+              <div style={{display:"flex", gap:12, alignItems:"flex-start"}}>
+                <span style={{fontSize:18, lineHeight:1, flexShrink:0}}>📅</span>
+                <div style={{fontSize:12, color:"var(--cream)", lineHeight:1.8, fontFamily:"'DM Sans',sans-serif", fontWeight:300}}>
+                  <b style={{color:"var(--gold)", fontWeight:600}}>이번 주 학습지만</b> 열람할 수 있어요.<br/>
+                  지난 주와 다음 주 학습지는 볼 수 없어요.
+                </div>
+              </div>
+              <div style={{height:1, background:"rgba(255,255,255,0.07)"}}/>
+              <div style={{display:"flex", gap:12, alignItems:"flex-start"}}>
+                <span style={{fontSize:18, lineHeight:1, flexShrink:0}}>👁️</span>
+                <div style={{fontSize:12, color:"var(--cream)", lineHeight:1.8, fontFamily:"'DM Sans',sans-serif", fontWeight:300}}>
+                  이번 주 학습지는 <b style={{color:"var(--gold)", fontWeight:600}}>일주일에 3번</b>만 열어볼 수 있어요.<br/>
+                  오른쪽 상단의 점 3개로 남은 횟수를 확인하세요.
+                </div>
+              </div>
+              <div style={{height:1, background:"rgba(255,255,255,0.07)"}}/>
+              <div style={{display:"flex", gap:12, alignItems:"flex-start"}}>
+                <span style={{fontSize:18, lineHeight:1, flexShrink:0}}>🔄</span>
+                <div style={{fontSize:12, color:"var(--cream)", lineHeight:1.8, fontFamily:"'DM Sans',sans-serif", fontWeight:300}}>
+                  매주 일요일이 되면 새 학습지가 자동으로 열려요.<br/>
+                  <span style={{color:"var(--sand)"}}>함께 꾸준히 성장해봐요 ✦</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 확인 버튼 */}
+            <button
+              onClick={() => setShowWelcomeModal(false)}
+              style={{
+                width:"100%", padding:"13px", borderRadius:10,
+                background:"var(--gold)", border:"none", cursor:"pointer",
+                fontFamily:"'DM Sans',sans-serif", fontSize:13,
+                fontWeight:600, color:"var(--espresso)",
+                letterSpacing:"0.08em", transition:"opacity 0.2s"
+              }}
+            >
+              확인했어요
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 🔒 잠긴 주차 안내 모달 */}
+      {showLockedModal && (
+        <div className="preview-backdrop" onClick={() => setShowLockedModal(false)}>
+          <div className="preview-modal" onClick={e => e.stopPropagation()} style={{gap:14}}>
+            <div style={{fontSize:36}}>🔒</div>
+            <div className="preview-modal-title" style={{textAlign:"center"}}>열람이 어렵습니다</div>
+            <div style={{fontSize:12, color:"var(--sand)", textAlign:"center", lineHeight:1.8, fontFamily:"'DM Sans',sans-serif", fontWeight:300}}>
+              해당 주차는 현재<br/>확인할 수 없어요.<br/>
+              <span style={{color:"var(--gold)"}}>이번 주 학습에 집중해봐요! ✦</span>
+            </div>
+            <div className="preview-modal-cancel" style={{opacity:0.9}} onClick={() => setShowLockedModal(false)}>확인</div>
+          </div>
+        </div>
+      )}
+
+      {/* 주간 열람 횟수 초과 모달 */}
+      {showViewsModal && (
+        <div className="preview-backdrop" onClick={() => setShowViewsModal(false)}>
+          <div className="preview-modal" onClick={e => e.stopPropagation()} style={{gap:14}}>
+            <div style={{fontSize:36}}>✈️</div>
+            <div className="preview-modal-title" style={{textAlign:"center"}}>이번 주 열람 완료</div>
+            <div style={{fontSize:12, color:"var(--sand)", textAlign:"center", lineHeight:1.8, fontFamily:"'DM Sans',sans-serif", fontWeight:300}}>
+              이번 주 최대 {CONFIG.MAX_VIEWS}회 열람을<br/>모두 사용했어요.<br/>
+              <span style={{color:"var(--gold)"}}>다음 주에 다시 만나요! ✦</span>
+            </div>
+            <div className="preview-modal-cancel" style={{opacity:0.9}} onClick={() => setShowViewsModal(false)}>확인</div>
+          </div>
+        </div>
+      )}
+      <div className="app-wrap">
+        {/* Header */}
+        <div className="header">
+          <div className="header-brand" onClick={handleLogoTap} style={{cursor:"pointer", userSelect:"none"}}>
+            ✦ Begins Study
+            {previewMode && (
+              <span style={{marginLeft:8, fontSize:9, letterSpacing:"0.2em", color:"var(--gold)", background:"rgba(201,169,110,0.15)", border:"1px solid rgba(201,169,110,0.3)", borderRadius:4, padding:"2px 7px", verticalAlign:"middle"}}>
+                PREVIEW
+              </span>
+            )}
+          </div>
+          <div className="view-counter">
+            <div className="view-label">Views left</div>
+            <div className="view-dots">
+              {Array(CONFIG.MAX_VIEWS).fill(null).map((_, i) => (
+                <div
+                  key={i}
+                  className={`view-dot ${i < viewsUsed ? "used" : "remaining"}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Week navigation */}
+        <div className="week-nav">
+          {Array.from({ length: 32 }, (_, i) => i + 1).map(w => (
+            <div
+              key={w}
+              className={`week-nav-dot${selectedWeek === w ? " active" : ""}${w !== currentWeek && !previewMode ? " locked" : ""}`}
+              onClick={() => handleSelectWeek(w)}
+            >
+              {w}
+            </div>
+          ))}
+        </div>
+
+        {/* Content */}
+        {remaining === 0 && viewsUsed >= CONFIG.MAX_VIEWS ? (
+          <div className="locked-screen">
+            <div className="locked-icon">🔒</div>
+            <div className="locked-title">이번 주 열람 완료</div>
+            <div className="locked-msg">
+              이번 주 최대 {CONFIG.MAX_VIEWS}회 열람을 모두 사용했어요.<br />
+              다음 주에 다시 만나요! 화이팅 ✈️
+            </div>
+          </div>
+        ) : !weekData ? (
+          <div className="locked-screen">
+            <div className="locked-icon">✈️</div>
+            <div className="locked-title">Week {selectedWeek ?? currentWeek}</div>
+            <div className="locked-msg">
+              콘텐츠 준비 중이에요.<br />곧 만나요!
+            </div>
+          </div>
+        ) : (
+          <>
+            <WeekContent weekData={weekData} />
+            <div className="footer">
+              Begins Study · Exclusively created by Amy · {new Date().getFullYear()}
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(App));
+  </script>
+</body>
+</html> 
